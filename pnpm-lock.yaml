@@ -32,6 +32,9 @@ importers:
       '@pulse-atx/database-types':
         specifier: workspace:*
         version: link:../../packages/database-types
+      '@pulse-atx/prompts':
+        specifier: workspace:*
+        version: link:../../packages/prompts
       '@pulse-atx/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas

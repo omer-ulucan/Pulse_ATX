@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pulse-atx/database-types": "workspace:*",
+    "@pulse-atx/prompts": "workspace:*",
     "@pulse-atx/schemas": "workspace:*",
     "@pulse-atx/shared": "workspace:*",
     "@supabase/supabase-js": "2.80.0",

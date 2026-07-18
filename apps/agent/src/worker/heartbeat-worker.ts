@@ -1,6 +1,7 @@
 import { sleep } from "@pulse-atx/shared";
 
 import type { RuntimeRepository } from "../repositories/runtime-repository.js";
+import type { AnalysisBatchSummary } from "../services/analysis-processor.js";
 import type { SourcePollOutcome, SourceScheduler } from "./source-scheduler.js";
 
 export interface HeartbeatOptions {
@@ -13,7 +14,12 @@ export interface HeartbeatSummary {
   activeIncidents: number;
   pendingJobs: number;
   pollOutcomes: SourcePollOutcome[];
+  processing: AnalysisBatchSummary | null;
   recoveredJobs: number;
+}
+
+export interface JobBatchProcessor {
+  processBatch(signal?: AbortSignal): Promise<AnalysisBatchSummary>;
 }
 
 export class HeartbeatWorker {
@@ -24,6 +30,7 @@ export class HeartbeatWorker {
     private readonly now: () => Date = () => new Date(),
     private readonly onHeartbeat: (summary: HeartbeatSummary) => void = () =>
       undefined,
+    private readonly jobProcessor?: JobBatchProcessor,
   ) {}
 
   private async updateStatus(
@@ -38,6 +45,7 @@ export class HeartbeatWorker {
       lastHeartbeatAt: this.now().toISOString(),
       metadata: {
         pollOutcomes: summary.pollOutcomes ?? [],
+        processing: summary.processing ?? null,
         recoveredJobs: summary.recoveredJobs ?? 0,
       },
       pendingJobs: summary.pendingJobs ?? 0,
@@ -55,9 +63,12 @@ export class HeartbeatWorker {
       current.getTime(),
       signal,
     );
+    const processing = this.jobProcessor
+      ? await this.jobProcessor.processBatch(signal)
+      : null;
     const metrics = await this.repository.getQueueMetrics();
     const degraded = pollOutcomes.some((outcome) => outcome.error !== null);
-    const summary = { ...metrics, pollOutcomes, recoveredJobs };
+    const summary = { ...metrics, pollOutcomes, processing, recoveredJobs };
     await this.updateStatus(degraded ? "degraded" : "healthy", summary);
     if (recoveredJobs > 0) {
       await this.repository.appendTimeline(

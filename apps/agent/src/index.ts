@@ -5,10 +5,14 @@ import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
 
 import { AustinTrafficFeedAdapter } from "./feeds/austin-traffic.js";
+import { VllmClient } from "./models/vllm-client.js";
+import { SupabaseAnalysisRepository } from "./repositories/analysis-repository.js";
 import { SupabaseEventRepository } from "./repositories/event-repository.js";
 import { MemoryRuntimeRepository } from "./repositories/memory-runtime-repository.js";
 import { SupabaseRuntimeRepository } from "./repositories/runtime-repository.js";
 import { IngestionService } from "./services/ingestion-service.js";
+import { AnalysisProcessor } from "./services/analysis-processor.js";
+import { NemotronAnalyzer } from "./services/nemotron-analyzer.js";
 import { HeartbeatWorker } from "./worker/heartbeat-worker.js";
 import {
   SourceScheduler,
@@ -34,6 +38,7 @@ process.on("SIGTERM", () => stop("SIGTERM"));
 
 const scheduledSources: ScheduledSource[] = [];
 let runtimeRepository;
+let jobProcessor: AnalysisProcessor | undefined;
 if (environment.DEMO_MODE) {
   runtimeRepository = new MemoryRuntimeRepository();
 } else {
@@ -46,6 +51,16 @@ if (environment.DEMO_MODE) {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
   runtimeRepository = new SupabaseRuntimeRepository(client);
+  const vllm = new VllmClient({
+    apiKey: environment.VLLM_API_KEY,
+    baseUrl: requireValue(environment.VLLM_BASE_URL, "VLLM_BASE_URL"),
+    modelName: requireValue(environment.NEMOTRON_MODEL, "NEMOTRON_MODEL"),
+  });
+  jobProcessor = new AnalysisProcessor(
+    new SupabaseAnalysisRepository(client),
+    new NemotronAnalyzer(vllm, vllm.metrics),
+    environment.WORKER_ID,
+  );
   if (environment.AUSTIN_TRAFFIC_FEED_URL) {
     const ingestion = new IngestionService(
       new AustinTrafficFeedAdapter(environment.AUSTIN_TRAFFIC_FEED_URL),
@@ -69,6 +84,7 @@ const worker = new HeartbeatWorker(
   },
   () => new Date(),
   (summary) => logger.info(summary, "heartbeat completed"),
+  jobProcessor,
 );
 
 logger.info(

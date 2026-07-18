@@ -1,6 +1,6 @@
 # Current Phase
 
-Phase 2 — Persistent Heartbeat and Realtime Dashboard
+Phase 3 — vLLM and Nemotron Analysis
 
 # Status
 
@@ -8,28 +8,27 @@ complete
 
 # Completed Work
 
-- Phases 0 and 1 are committed.
-- Added source scheduling, persistent heartbeat orchestration, agent health, graceful shutdown, and stale-job startup recovery.
-- Added Supabase-backed runtime persistence and deterministic in-memory test repositories.
-- Added Realtime event, incident, timeline, alert, security, source-health, and agent-health subscriptions with reconnect backoff.
-- Added analyzing-state map markers, health metrics, and a streaming agent timeline.
+- Phases 0 through 2 are committed.
+- Added atomic job claiming and analysis persistence, an OpenAI-compatible vLLM client, and versioned Nemotron prompts.
+- Added structured decision validation, one repair attempt, deterministic fallback, bounded concurrency, and inference metrics.
+- Integrated job processing into the persistent heartbeat without invoking the model when the queue is empty.
+- Added atomic incident, decision, timeline, raw-event, and job updates that stream through existing Realtime subscriptions.
 
 # Verification
 
-- `pnpm install` — passed after adding dotenv.
+- `pnpm install` — passed after linking the prompts workspace package.
 - `pnpm format:check` — passed.
 - `pnpm lint` — passed with zero warnings.
 - `pnpm typecheck` — passed for all applications and packages.
-- `pnpm test` — passed: 3 files, 8 tests including scheduling, startup recovery, degraded health, and unchanged-event behavior.
+- `pnpm test` — passed: 4 files, 12 tests including mocked vLLM, repair, fallback, atomic SQL contracts, heartbeat, and ingestion.
 - `pnpm build` — passed for the worker and Next.js app.
-- `pnpm --filter @pulse-atx/agent start -- --once` — passed; one heartbeat completed and shut down safely.
-- Built `/dashboard` smoke test — HTTP 200 with the operations map and agent timeline.
-- Live Supabase Realtime integration cannot be exercised without the missing Supabase URL and keys; the compiled subscription and reconnect path is active when configured.
+- `pnpm --filter @pulse-atx/agent start -- --once` — passed; the empty queue caused no model invocation.
 
 # Missing Configuration
 
 - Supabase URL and keys are unavailable.
 - Docker Desktop must be started and `pnpm dlx supabase@2.58.5 db reset` run to apply the migration locally.
+- A running vLLM endpoint, API key if required, and served Nemotron model name are unavailable; mocked inference tests cover the integration.
 
 # Known Issues
 
@@ -37,4 +36,4 @@ complete
 
 # Next Phase
 
-- Phase 3 — vLLM and Nemotron Analysis
+- Phase 4 — HiddenLayer Security

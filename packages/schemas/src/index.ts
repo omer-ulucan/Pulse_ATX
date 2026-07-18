@@ -26,6 +26,40 @@ export const NormalizedEventSchema = z.object({
 export type EventSource = z.infer<typeof EventSourceSchema>;
 export type NormalizedEvent = z.infer<typeof NormalizedEventSchema>;
 
+export const AffectedEntitySchema = z.object({
+  name: z.string().min(1),
+  type: z.enum([
+    "road",
+    "transit_route",
+    "weather_area",
+    "neighborhood",
+    "facility",
+  ]),
+});
+
+export const MemoryEffectSchema = z.object({
+  adjusted_prediction_minutes: z.number().int().nonnegative(),
+  base_prediction_minutes: z.number().int().nonnegative(),
+  similar_incident_count: z.number().int().nonnegative(),
+  used_historical_memory: z.boolean(),
+});
+
+export const IncidentDecisionSchema = z.object({
+  affected_entities: z.array(AffectedEntitySchema).max(20),
+  confidence: z.number().min(0).max(1),
+  evidence: z.array(z.string().min(1)).min(1).max(20),
+  incident_type: z.string().min(1),
+  memory_effect: MemoryEffectSchema,
+  predicted_duration_minutes: z.number().int().min(0).max(1440),
+  recommended_actions: z.array(z.string().min(1)).max(12),
+  requires_human_approval: z.boolean(),
+  severity: z.number().int().min(1).max(5),
+  summary: z.string().min(1).max(1200),
+  title: z.string().min(1).max(160),
+});
+
+export type IncidentDecision = z.infer<typeof IncidentDecisionSchema>;
+
 const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.url().optional(),
@@ -74,6 +108,8 @@ const AgentEnvironmentSchema = z
       for (const key of [
         "SUPABASE_URL",
         "SUPABASE_SERVICE_ROLE_KEY",
+        "VLLM_BASE_URL",
+        "NEMOTRON_MODEL",
       ] as const) {
         if (!value[key]) {
           context.addIssue({

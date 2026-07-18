@@ -51,3 +51,7 @@ pnpm dev:agent
 ```
 
 On startup it recovers stale Postgres jobs, polls only due sources, persists source and agent health, and shuts down cleanly on `SIGINT` or `SIGTERM`. Open `/dashboard` for the reconnecting Supabase Realtime view.
+
+## Nemotron through vLLM
+
+Set `VLLM_BASE_URL` to an OpenAI-compatible `/v1` endpoint and `NEMOTRON_MODEL` to the served model name. The worker claims at most eight jobs per heartbeat and runs at most four model requests concurrently. Structured responses are Zod-validated, repaired once, and replaced with a persisted deterministic fallback if validation still fails.

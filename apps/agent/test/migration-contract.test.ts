@@ -37,4 +37,19 @@ describe("core schema migration", () => {
       "status = case when attempts >= p_max_attempts",
     );
   });
+
+  it("claims jobs with skip locked and atomically persists analysis", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180003_analysis_pipeline.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("for update skip locked");
+    expect(migration).toContain("persist_analysis_result");
+    expect(migration).toContain("insert into public.agent_decisions");
+    expect(migration).toContain("set status = 'completed'");
+  });
 });
