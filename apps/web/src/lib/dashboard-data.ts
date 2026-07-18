@@ -14,10 +14,15 @@ export const DashboardRawEventSchema = z.object({
 export const DashboardIncidentSchema = z.object({
   confidence: z.number().nullable(),
   id: z.uuid(),
+  incident_type: z.string(),
+  last_updated_at: z.string(),
   latitude: z.number().nullable(),
+  location_name: z.string().nullable(),
   longitude: z.number().nullable(),
+  predicted_duration_minutes: z.number().int().nullable(),
   severity: z.number().int().nullable(),
   status: z.string(),
+  summary: z.string(),
   title: z.string(),
 });
 
@@ -115,7 +120,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
         fetchRows(
           config.url,
           config.anonKey,
-          "incidents?select=id,title,status,severity,confidence,latitude,longitude&status=in.(analyzing,active,monitoring)&order=last_updated_at.desc&limit=50",
+          "incidents?select=id,title,summary,incident_type,status,severity,confidence,latitude,longitude,location_name,predicted_duration_minutes,last_updated_at&status=in.(analyzing,active,monitoring)&order=last_updated_at.desc&limit=50",
           z.array(DashboardIncidentSchema),
         ),
         fetchRows(

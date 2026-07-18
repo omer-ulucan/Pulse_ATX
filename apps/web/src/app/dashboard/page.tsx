@@ -19,6 +19,9 @@ export default async function DashboardPage() {
           </h1>
         </div>
         <nav className="flex gap-5 text-sm text-slate-300">
+          <Link className="hover:text-emerald-200" href="/security">
+            Security
+          </Link>
           <Link className="hover:text-emerald-200" href="/learning">
             Learning
           </Link>

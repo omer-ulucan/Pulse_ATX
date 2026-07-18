@@ -101,3 +101,17 @@ pnpm demo:containment
 With a running sandbox and Supabase migrations applied, set `OPENSHELL_LIVE_CONTAINMENT=true`. The same command executes one approved NOAA request and one forbidden `example.com` request through `nemoclaw exec`; it requires the forbidden request to fail and records the denial through `record_runtime_policy_violation`. The existing Realtime security panel displays that `runtime_policy` finding. Stream gateway evidence with `openshell logs pulse-atx --tail`.
 
 The enforcement boundaries are distinct: HiddenLayer detects malicious content before and after inference, OpenShell blocks filesystem/network operations outside policy even if the process is compromised, and the human-approval workflow controls legitimate but high-impact actions.
+
+## Alerts, approvals, and demo controls
+
+Validated decisions create operator alert drafts only when severity is at least 3, confidence is at least 0.65, and duration or severity crosses a meaningful threshold. Severity 4–5 alerts and model-requested escalations become `pending_approval`; PulseATX never mass-publishes them automatically. `/security` shows detections, OpenShell blocks, the approval queue, and all protected scenarios.
+
+Next.js remains presentation-only. Mutating controls call the persistent worker's bounded HTTP control plane, which uses the service-role key server-side. Generate a secret rather than checking one in:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+```
+
+Set that output as `DEMO_SECRET`, set `CONTROL_SERVER_ENABLED=true`, restrict `CONTROL_ALLOWED_ORIGIN` to the dashboard origin, and set the browser-safe `NEXT_PUBLIC_AGENT_CONTROL_URL`. Then start the worker and web app and open `/security`. The secret stays only in component memory and is sent as a bearer token; it is never stored in browser storage.
+
+The protected controls create four deterministic flows without database editing: benign traffic, prompt injection, an exfiltration-policy finding, and a critical alert awaiting approval. Operator approval uses a guarded transaction that records identity, time, and an agent timeline event.

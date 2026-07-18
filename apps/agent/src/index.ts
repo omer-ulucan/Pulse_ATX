@@ -4,6 +4,8 @@ import { loadAgentEnvironment } from "@pulse-atx/schemas";
 import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
 
+import { DemoControlServer } from "./control/control-server.js";
+import { SupabaseDemoControlRepository } from "./control/demo-control-repository.js";
 import { CrossFeedCorrelationService } from "./correlation/cross-feed-correlator.js";
 import { CapMetroAlertsFeedAdapter } from "./feeds/capmetro-alerts.js";
 import { NoaaAlertsFeedAdapter } from "./feeds/noaa-alerts.js";
@@ -48,6 +50,7 @@ const scheduledSources: ScheduledSource[] = [];
 let runtimeRepository;
 let jobProcessor: AnalysisProcessor | undefined;
 let memoryService: MemoryService | undefined;
+let controlServer: DemoControlServer | undefined;
 if (environment.DEMO_MODE) {
   runtimeRepository = new MemoryRuntimeRepository();
 } else {
@@ -60,6 +63,18 @@ if (environment.DEMO_MODE) {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
   runtimeRepository = new SupabaseRuntimeRepository(client);
+  if (environment.CONTROL_SERVER_ENABLED) {
+    controlServer = new DemoControlServer(
+      new SupabaseDemoControlRepository(client),
+      {
+        allowedOrigin: environment.CONTROL_ALLOWED_ORIGIN,
+        host: environment.CONTROL_SERVER_HOST,
+        port: environment.CONTROL_SERVER_PORT,
+        secret: requireValue(environment.DEMO_SECRET, "DEMO_SECRET"),
+      },
+      (message, context) => logger.info(context ?? {}, message),
+    );
+  }
   const vllm = new VllmClient({
     apiKey: environment.VLLM_API_KEY,
     baseUrl: requireValue(environment.VLLM_BASE_URL, "VLLM_BASE_URL"),
@@ -152,4 +167,12 @@ logger.info(
   { demoMode: environment.DEMO_MODE, workerId: environment.WORKER_ID },
   "agent worker booting",
 );
-await worker.run(once, controller.signal);
+if (controlServer) {
+  const address = await controlServer.start();
+  logger.info({ address }, "protected control server listening");
+}
+try {
+  await worker.run(once, controller.signal);
+} finally {
+  await controlServer?.stop();
+}

@@ -112,4 +112,21 @@ describe("core schema migration", () => {
     expect(migration).toContain("'openshell'");
     expect(migration).toContain("'blocked'");
   });
+
+  it("creates threshold alerts and protects operator approval", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180008_alerts_approval_demo.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("generate_alert_from_decision");
+    expect(migration).toContain("decision_severity >= 3");
+    expect(migration).toContain("decision_confidence >= 0.65");
+    expect(migration).toContain("'pending_approval'");
+    expect(migration).toContain("approve_alert");
+    expect(migration).toContain("run_demo_scenario");
+  });
 });

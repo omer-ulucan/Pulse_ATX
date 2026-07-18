@@ -41,6 +41,16 @@ function markerPosition(latitude: number, longitude: number): CSSProperties {
   return { left: `${x}%`, top: `${y}%` };
 }
 
+function severityMarker(severity: number | null): string {
+  if (severity === 5)
+    return "bg-red-400 shadow-[0_0_22px_rgba(248,113,113,.85)]";
+  if (severity === 4)
+    return "bg-orange-400 shadow-[0_0_22px_rgba(251,146,60,.8)]";
+  if (severity === 3)
+    return "bg-amber-300 shadow-[0_0_20px_rgba(252,211,77,.75)]";
+  return "bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,.7)]";
+}
+
 export function RealtimeDashboard({
   snapshot,
 }: {
@@ -55,6 +65,9 @@ export function RealtimeDashboard({
   const [health, setHealth] = useState<DashboardHealth | null>(snapshot.health);
   const [securityFindings, setSecurityFindings] = useState(
     snapshot.securityFindings,
+  );
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(
+    snapshot.incidents[0]?.id ?? null,
   );
   const [activityVersion, setActivityVersion] = useState(0);
 
@@ -190,6 +203,11 @@ export function RealtimeDashboard({
         ),
     [rawEvents],
   );
+  const selectedIncident = useMemo(
+    () =>
+      incidents.find((incident) => incident.id === selectedIncidentId) ?? null,
+    [incidents, selectedIncidentId],
+  );
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -235,17 +253,56 @@ export function RealtimeDashboard({
               } => incident.latitude !== null && incident.longitude !== null,
             )
             .map((incident) => (
-              <div
+              <button
+                aria-label={`Select ${incident.title}`}
                 className="group absolute z-20 -translate-x-1/2 -translate-y-1/2"
                 key={incident.id}
+                onClick={() => setSelectedIncidentId(incident.id)}
                 style={markerPosition(incident.latitude, incident.longitude)}
+                type="button"
               >
-                <span className="block size-5 rounded-full border-2 border-white bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,.7)]" />
+                <span
+                  className={`block size-5 rounded-full border-2 border-white ${severityMarker(incident.severity)}`}
+                />
                 <span className="pointer-events-none absolute left-7 top-1/2 hidden w-52 -translate-y-1/2 rounded-xl border border-white/10 bg-slate-950/95 p-3 text-xs text-slate-200 group-hover:block">
                   {incident.title} · severity {incident.severity ?? "pending"}
                 </span>
-              </div>
+              </button>
             ))}
+          {selectedIncident ? (
+            <article className="absolute right-6 top-6 z-30 w-[min(22rem,calc(100%-3rem))] rounded-2xl border border-white/10 bg-slate-950/90 p-5 backdrop-blur">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs uppercase tracking-wide text-emerald-200">
+                  {selectedIncident.incident_type.replaceAll("_", " ")}
+                </span>
+                <button
+                  aria-label="Close incident details"
+                  className="text-slate-500 hover:text-slate-200"
+                  onClick={() => setSelectedIncidentId(null)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+              <h2 className="mt-3 font-semibold text-slate-100">
+                {selectedIncident.title}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                {selectedIncident.summary}
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+                <span>Severity {selectedIncident.severity ?? "—"}</span>
+                <span>
+                  {selectedIncident.predicted_duration_minutes ?? "—"} min
+                </span>
+                <span>
+                  {selectedIncident.confidence === null
+                    ? "—"
+                    : `${Math.round(selectedIncident.confidence * 100)}%`}
+                </span>
+              </div>
+            </article>
+          ) : null}
           {!snapshot.config ? (
             <div className="absolute inset-x-6 bottom-6 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-5 text-sm text-amber-100">
               Configure the public Supabase URL and anon key to activate the

@@ -80,6 +80,15 @@ export const IncidentLessonSchema = z.object({
 
 export type IncidentLesson = z.infer<typeof IncidentLessonSchema>;
 
+export const DemoScenarioSchema = z.enum([
+  "benign",
+  "prompt_injection",
+  "exfiltration",
+  "critical_approval",
+]);
+
+export type DemoScenario = z.infer<typeof DemoScenarioSchema>;
+
 const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.url().optional(),
@@ -102,6 +111,13 @@ const AgentEnvironmentSchema = z
   .object({
     AUSTIN_TRAFFIC_FEED_URL: optionalUrl,
     CAPMETRO_FEED_URL: optionalUrl,
+    CONTROL_ALLOWED_ORIGIN: optionalUrl,
+    CONTROL_SERVER_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    CONTROL_SERVER_HOST: z.string().min(1).default("127.0.0.1"),
+    CONTROL_SERVER_PORT: integerString(8_787, 1_024, 65_535),
     DEMO_MODE: booleanString,
     DEMO_SECRET: optionalString,
     EMBEDDING_API_KEY: optionalString,
@@ -126,6 +142,13 @@ const AgentEnvironmentSchema = z
     WEATHER_POLL_INTERVAL_MS: integerString(60_000, 30_000, 600_000),
   })
   .superRefine((value, context) => {
+    if (value.CONTROL_SERVER_ENABLED && !value.DEMO_SECRET) {
+      context.addIssue({
+        code: "custom",
+        message: "DEMO_SECRET is required when CONTROL_SERVER_ENABLED=true",
+        path: ["DEMO_SECRET"],
+      });
+    }
     if (!value.DEMO_MODE) {
       for (const key of [
         "SUPABASE_URL",
@@ -163,6 +186,7 @@ export function loadAgentEnvironment(
 }
 
 export const PublicEnvironmentSchema = z.object({
+  NEXT_PUBLIC_AGENT_CONTROL_URL: optionalUrl,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalString,
   NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
 });

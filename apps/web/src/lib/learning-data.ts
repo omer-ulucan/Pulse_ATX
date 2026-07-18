@@ -17,11 +17,19 @@ const OutcomeSchema = z.object({
   prediction_error: z.number().int().nullable(),
 });
 
+const DecisionSchema = z.object({
+  created_at: z.string(),
+  id: z.uuid(),
+  output: z.record(z.string(), z.unknown()),
+});
+
 export type LearningMemory = z.infer<typeof MemorySchema>;
 export type LearningOutcome = z.infer<typeof OutcomeSchema>;
+export type LearningDecision = z.infer<typeof DecisionSchema>;
 
 export interface LearningSnapshot {
   configured: boolean;
+  decisions: LearningDecision[];
   error: string | null;
   memories: LearningMemory[];
   outcomes: LearningOutcome[];
@@ -50,11 +58,17 @@ export async function getLearningSnapshot(): Promise<LearningSnapshot> {
   const anonKey = environment.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const url = environment.NEXT_PUBLIC_SUPABASE_URL;
   if (!anonKey || !url) {
-    return { configured: false, error: null, memories: [], outcomes: [] };
+    return {
+      configured: false,
+      decisions: [],
+      error: null,
+      memories: [],
+      outcomes: [],
+    };
   }
 
   try {
-    const [memories, outcomes] = await Promise.all([
+    const [memories, outcomes, decisions] = await Promise.all([
       fetchRows(
         url,
         anonKey,
@@ -67,11 +81,24 @@ export async function getLearningSnapshot(): Promise<LearningSnapshot> {
         "incident_outcomes?select=id,predicted_duration_minutes,actual_duration_minutes,prediction_error,created_at&order=created_at.desc&limit=100",
         z.array(OutcomeSchema),
       ),
+      fetchRows(
+        url,
+        anonKey,
+        "agent_decisions?select=id,output,created_at&order=created_at.desc&limit=100",
+        z.array(DecisionSchema),
+      ),
     ]);
-    return { configured: true, error: null, memories, outcomes };
+    return {
+      configured: true,
+      decisions,
+      error: null,
+      memories,
+      outcomes,
+    };
   } catch (error) {
     return {
       configured: true,
+      decisions: [],
       error:
         error instanceof Error ? error.message : "Learning snapshot failed",
       memories: [],
