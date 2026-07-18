@@ -12,6 +12,7 @@
     "dev:agent": "pnpm --filter @pulse-atx/agent dev",
     "dev:web": "pnpm --filter @pulse-atx/web dev",
     "demo:malicious": "pnpm --filter @pulse-atx/scripts exec tsx inject-malicious-event.ts",
+    "demo:containment": "pnpm --filter @pulse-atx/scripts exec tsx demo-containment.ts",
     "demo:replay": "pnpm --filter @pulse-atx/scripts exec tsx replay-incidents.ts",
     "evaluate:learning": "pnpm --filter @pulse-atx/scripts exec tsx evaluate-learning.ts",
     "format": "prettier --write .",

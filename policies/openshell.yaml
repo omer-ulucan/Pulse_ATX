@@ -1,0 +1,122 @@
+version: 1
+
+filesystem_policy:
+  include_workdir: false
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /etc
+    - /proc
+    - /dev/urandom
+    - /dev/random
+  read_write:
+    - /sandbox/workspace
+    - /sandbox/pulse-atx-state
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: hard_requirement
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+network_policies:
+  austin_traffic:
+    name: austin-traffic-read-only
+    endpoints:
+      - host: data.austintexas.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/resource/dx9v-zd7x.json*" }
+    binaries: &node_binaries
+      - { path: /usr/bin/node }
+      - { path: /usr/local/bin/node }
+
+  capmetro_alerts:
+    name: capmetro-alerts-read-only
+    endpoints:
+      - host: data.texas.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/download/9zu9-jwr2/text/plain" }
+    binaries: *node_binaries
+
+  noaa_alerts:
+    name: noaa-alerts-read-only
+    endpoints:
+      - host: api.weather.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/alerts/active*" }
+    binaries: *node_binaries
+
+  supabase_cloud:
+    name: supabase-project-api
+    endpoints:
+      - host: "*.supabase.co"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/rest/v1/**" }
+          - allow: { method: HEAD, path: "/rest/v1/**" }
+          - allow: { method: POST, path: "/rest/v1/**" }
+          - allow: { method: PATCH, path: "/rest/v1/**" }
+    binaries: *node_binaries
+
+  hiddenlayer_runtime:
+    name: hiddenlayer-runtime-security
+    endpoints:
+      - host: api.hiddenlayer.ai
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/detection/v1/interactions" }
+    binaries: *node_binaries
+
+  local_supabase:
+    name: local-supabase-through-gateway
+    endpoints:
+      - host: host.openshell.internal
+        port: 54321
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/rest/v1/**" }
+          - allow: { method: HEAD, path: "/rest/v1/**" }
+          - allow: { method: POST, path: "/rest/v1/**" }
+          - allow: { method: PATCH, path: "/rest/v1/**" }
+    binaries: *node_binaries
+
+  local_vllm:
+    name: local-vllm-through-gateway
+    endpoints:
+      - host: host.openshell.internal
+        port: 8000
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/v1/models" }
+          - allow: { method: POST, path: "/v1/chat/completions" }
+    binaries: *node_binaries
+
+  local_embeddings:
+    name: local-embeddings-through-gateway
+    endpoints:
+      - host: host.openshell.internal
+        port: 8001
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/v1/embeddings" }
+    binaries: *node_binaries

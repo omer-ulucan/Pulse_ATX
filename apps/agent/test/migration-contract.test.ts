@@ -97,4 +97,19 @@ describe("core schema migration", () => {
     expect(migration).toContain("'correlated'");
     expect(migration).toContain("greatest(coalesce(severity, 1)");
   });
+
+  it("stores OpenShell policy violations for realtime visibility", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180007_runtime_containment.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("record_runtime_policy_violation");
+    expect(migration).toContain("'runtime_policy'");
+    expect(migration).toContain("'openshell'");
+    expect(migration).toContain("'blocked'");
+  });
 });

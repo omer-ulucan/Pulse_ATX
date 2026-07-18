@@ -1,0 +1,65 @@
+preset:
+  name: pulse-atx
+  description: PulseATX public feeds, Supabase, HiddenLayer, and local embeddings
+
+network_policies:
+  pulse_atx_public_feeds:
+    name: pulse-atx-public-feeds
+    endpoints:
+      - host: data.austintexas.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/resource/dx9v-zd7x.json*" }
+      - host: data.texas.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/download/9zu9-jwr2/text/plain" }
+      - host: api.weather.gov
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/alerts/active*" }
+    binaries: &node_binaries
+      - { path: /usr/bin/node }
+      - { path: /usr/local/bin/node }
+
+  pulse_atx_supabase:
+    name: pulse-atx-supabase
+    endpoints:
+      - host: "*.supabase.co"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/rest/v1/**" }
+          - allow: { method: HEAD, path: "/rest/v1/**" }
+          - allow: { method: POST, path: "/rest/v1/**" }
+          - allow: { method: PATCH, path: "/rest/v1/**" }
+    binaries: *node_binaries
+
+  pulse_atx_hiddenlayer:
+    name: pulse-atx-hiddenlayer
+    endpoints:
+      - host: api.hiddenlayer.ai
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/detection/v1/interactions" }
+    binaries: *node_binaries
+
+  pulse_atx_local_embeddings:
+    name: pulse-atx-local-embeddings
+    endpoints:
+      - host: host.openshell.internal
+        port: 8001
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/v1/embeddings" }
+    binaries: *node_binaries

@@ -3,6 +3,7 @@ export type SecurityStage =
   | "feed_input"
   | "model_output"
   | "model_prompt"
+  | "runtime_policy"
   | "tool_call"
   | "tool_result";
 

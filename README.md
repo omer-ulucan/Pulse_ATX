@@ -78,3 +78,26 @@ pnpm evaluate:learning
 The worker polls the [NWS active-alerts API](https://www.weather.gov/documentation/services-web-api) no more than once per minute and the [CapMetro GTFS-Realtime service-alert dataset](https://www.capmetro.org/developertools) every 30 seconds. NOAA GeoJSON polygons provide deterministic spatial evidence; CapMetro effects derive bounded delay and severity anomalies.
 
 Before model execution, supporting events are compared with active incidents using a two-hour time window, Haversine distance, affected routes, and location terms. A qualifying event is attached through one atomic RPC that escalates severity or duration and completes the job without creating another incident.
+
+## NemoClaw and OpenShell containment
+
+`policies/openshell.yaml` is a complete OpenShell v1 policy with deny-by-default egress, per-binary REST rules, a non-root process, and hard-requirement Landlock filesystem controls. Only the workspace, runtime state, temporary storage, and `/dev/null` are writable; NemoClaw/OpenShell config and provider credential paths remain outside the worker's accessible tree.
+
+For a NemoClaw-managed sandbox, onboard a sandbox named `pulse-atx`, copy the built workspace to `/sandbox/workspace`, and apply the checked-in custom preset:
+
+```bash
+nemoclaw pulse-atx policy-add --from-file policies/nemoclaw-pulse-atx.yaml --yes
+nemoclaw pulse-atx exec --workdir /sandbox/workspace -- node apps/agent/dist/index.js
+```
+
+Use NemoClaw's managed `inference.local` route for vLLM inside that sandbox. The custom preset adds only PulseATX feeds, Supabase, HiddenLayer, and the local embedding bridge; it does not add catch-all egress. Keep credentials in OpenShell providers or host-managed environment injection, never in the sandbox workspace.
+
+Run the deterministic policy check on any machine:
+
+```bash
+pnpm demo:containment
+```
+
+With a running sandbox and Supabase migrations applied, set `OPENSHELL_LIVE_CONTAINMENT=true`. The same command executes one approved NOAA request and one forbidden `example.com` request through `nemoclaw exec`; it requires the forbidden request to fail and records the denial through `record_runtime_policy_violation`. The existing Realtime security panel displays that `runtime_policy` finding. Stream gateway evidence with `openshell logs pulse-atx --tail`.
+
+The enforcement boundaries are distinct: HiddenLayer detects malicious content before and after inference, OpenShell blocks filesystem/network operations outside policy even if the process is compromised, and the human-approval workflow controls legitimate but high-impact actions.
