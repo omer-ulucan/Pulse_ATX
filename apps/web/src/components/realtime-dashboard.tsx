@@ -7,9 +7,11 @@ import {
   DashboardHealthSchema,
   DashboardIncidentSchema,
   DashboardRawEventSchema,
+  DashboardSecurityFindingSchema,
   DashboardTimelineSchema,
   type DashboardHealth,
   type DashboardIncident,
+  type DashboardSecurityFinding,
   type DashboardSnapshot,
   type DashboardTimeline,
 } from "../lib/dashboard-data";
@@ -51,6 +53,9 @@ export function RealtimeDashboard({
   const [incidents, setIncidents] = useState(snapshot.incidents);
   const [timeline, setTimeline] = useState(snapshot.timeline);
   const [health, setHealth] = useState<DashboardHealth | null>(snapshot.health);
+  const [securityFindings, setSecurityFindings] = useState(
+    snapshot.securityFindings,
+  );
   const [activityVersion, setActivityVersion] = useState(0);
 
   useEffect(() => {
@@ -106,13 +111,23 @@ export function RealtimeDashboard({
             const parsed = DashboardHealthSchema.safeParse(payload.new);
             if (parsed.success) setHealth(parsed.data);
           },
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "security_findings" },
+          (payload) => {
+            const parsed = DashboardSecurityFindingSchema.safeParse(
+              payload.new,
+            );
+            if (parsed.success) {
+              setSecurityFindings((items) =>
+                upsertById(items, parsed.data).slice(0, 10),
+              );
+            }
+          },
         );
 
-      for (const table of [
-        "alerts",
-        "security_findings",
-        "source_health",
-      ] as const) {
+      for (const table of ["alerts", "source_health"] as const) {
         channel = channel.on(
           "postgres_changes",
           { event: "*", schema: "public", table },
@@ -237,6 +252,40 @@ export function RealtimeDashboard({
               Realtime city view.
             </div>
           ) : null}
+        </div>
+        <div className="rounded-3xl border border-red-300/10 bg-red-300/[0.04] p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">
+              Runtime security
+            </p>
+            <span className="text-sm text-slate-400">
+              {securityFindings.length} recent
+            </span>
+          </div>
+          {securityFindings.length === 0 ? (
+            <p className="text-sm text-slate-400">No threats detected.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {securityFindings
+                .slice(0, 4)
+                .map((finding: DashboardSecurityFinding) => (
+                  <article
+                    className="rounded-2xl border border-red-300/10 bg-black/10 p-4"
+                    key={finding.id}
+                  >
+                    <p className="text-xs uppercase tracking-wide text-red-200">
+                      {finding.severity} · {finding.stage}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-100">
+                      {finding.threat_type}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {finding.action_taken}
+                    </p>
+                  </article>
+                ))}
+            </div>
+          )}
         </div>
       </section>
 

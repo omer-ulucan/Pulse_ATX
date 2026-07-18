@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import type { SecurityScanResult } from "../security/types.js";
+
 import type {
   AnalysisJob,
   AnalysisRepository,
@@ -7,12 +9,14 @@ import type {
 } from "./analysis-repository.js";
 
 interface MemoryQueuedJob extends AnalysisJob {
-  status: "completed" | "failed" | "pending" | "processing";
+  status: "completed" | "failed" | "pending" | "processing" | "quarantined";
 }
 
 export class MemoryAnalysisRepository implements AnalysisRepository {
   readonly jobs: MemoryQueuedJob[] = [];
   readonly persisted: (PersistedAnalysis & { incidentId: string })[] = [];
+  readonly quarantined: { finding: SecurityScanResult; job: AnalysisJob }[] =
+    [];
 
   addJob(
     payload: Record<string, unknown>,
@@ -64,5 +68,17 @@ export class MemoryAnalysisRepository implements AnalysisRepository {
     const incidentId = randomUUID();
     this.persisted.push({ ...analysis, incidentId });
     return Promise.resolve(incidentId);
+  }
+
+  quarantineJob(
+    workerId: string,
+    job: AnalysisJob,
+    finding: SecurityScanResult,
+  ): Promise<string> {
+    void workerId;
+    const stored = this.jobs.find((item) => item.id === job.id);
+    if (stored) stored.status = "quarantined";
+    this.quarantined.push({ finding, job });
+    return Promise.resolve(randomUUID());
   }
 }

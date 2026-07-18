@@ -110,6 +110,8 @@ const AgentEnvironmentSchema = z
         "SUPABASE_SERVICE_ROLE_KEY",
         "VLLM_BASE_URL",
         "NEMOTRON_MODEL",
+        "HIDDENLAYER_API_KEY",
+        "HIDDENLAYER_BASE_URL",
       ] as const) {
         if (!value[key]) {
           context.addIssue({

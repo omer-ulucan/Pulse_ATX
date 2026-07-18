@@ -10,6 +10,7 @@ import { SupabaseAnalysisRepository } from "./repositories/analysis-repository.j
 import { SupabaseEventRepository } from "./repositories/event-repository.js";
 import { MemoryRuntimeRepository } from "./repositories/memory-runtime-repository.js";
 import { SupabaseRuntimeRepository } from "./repositories/runtime-repository.js";
+import { HiddenLayerClient } from "./security/hiddenlayer-client.js";
 import { IngestionService } from "./services/ingestion-service.js";
 import { AnalysisProcessor } from "./services/analysis-processor.js";
 import { NemotronAnalyzer } from "./services/nemotron-analyzer.js";
@@ -56,10 +57,24 @@ if (environment.DEMO_MODE) {
     baseUrl: requireValue(environment.VLLM_BASE_URL, "VLLM_BASE_URL"),
     modelName: requireValue(environment.NEMOTRON_MODEL, "NEMOTRON_MODEL"),
   });
+  const security = new HiddenLayerClient({
+    apiKey: requireValue(
+      environment.HIDDENLAYER_API_KEY,
+      "HIDDENLAYER_API_KEY",
+    ),
+    baseUrl: requireValue(
+      environment.HIDDENLAYER_BASE_URL,
+      "HIDDENLAYER_BASE_URL",
+    ),
+    requesterId: environment.WORKER_ID,
+  });
   jobProcessor = new AnalysisProcessor(
     new SupabaseAnalysisRepository(client),
-    new NemotronAnalyzer(vllm, vllm.metrics),
+    new NemotronAnalyzer(vllm, vllm.metrics, security),
     environment.WORKER_ID,
+    8,
+    4,
+    security,
   );
   if (environment.AUSTIN_TRAFFIC_FEED_URL) {
     const ingestion = new IngestionService(

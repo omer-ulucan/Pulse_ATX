@@ -2,6 +2,11 @@ import { mapBounded } from "@pulse-atx/shared";
 
 import type { InferenceMetricsSnapshot } from "../models/types.js";
 import type { AnalysisRepository } from "../repositories/analysis-repository.js";
+import {
+  enforceSecurityScan,
+  SecurityBlockError,
+  type SecurityScanner,
+} from "../security/types.js";
 import type { NemotronAnalyzer } from "./nemotron-analyzer.js";
 
 export interface AnalysisBatchSummary {
@@ -9,6 +14,7 @@ export interface AnalysisBatchSummary {
   completed: number;
   failed: number;
   inference: InferenceMetricsSnapshot;
+  quarantined: number;
 }
 
 export class AnalysisProcessor {
@@ -18,6 +24,7 @@ export class AnalysisProcessor {
     private readonly workerId: string,
     private readonly maxBatchSize = 8,
     private readonly concurrency = 4,
+    private readonly security?: SecurityScanner,
   ) {}
 
   async processBatch(signal?: AbortSignal): Promise<AnalysisBatchSummary> {
@@ -27,6 +34,13 @@ export class AnalysisProcessor {
     );
     const outcomes = await mapBounded(jobs, this.concurrency, async (job) => {
       try {
+        await enforceSecurityScan(
+          this.security,
+          "feed_input",
+          JSON.stringify(job.payload),
+          { rawEventId: job.rawEventId, source: job.source },
+          signal,
+        );
         const result = await this.analyzer.analyze(
           {
             event: {
@@ -42,22 +56,36 @@ export class AnalysisProcessor {
           ...result,
           job,
         });
-        return true;
+        return "completed" as const;
       } catch (error) {
+        if (error instanceof SecurityBlockError) {
+          await this.repository.quarantineJob(
+            this.workerId,
+            job,
+            error.finding,
+          );
+          return "quarantined" as const;
+        }
         await this.repository.failJob(
           job.id,
           this.workerId,
           error instanceof Error ? error.message : "Event analysis failed",
         );
-        return false;
+        return "failed" as const;
       }
     });
-    const completed = outcomes.filter(Boolean).length;
+    const completed = outcomes.filter(
+      (outcome) => outcome === "completed",
+    ).length;
+    const quarantined = outcomes.filter(
+      (outcome) => outcome === "quarantined",
+    ).length;
     return {
       claimed: jobs.length,
       completed,
-      failed: jobs.length - completed,
+      failed: jobs.length - completed - quarantined,
       inference: this.analyzer.metrics.snapshot(),
+      quarantined,
     };
   }
 }

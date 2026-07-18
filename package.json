@@ -11,6 +11,7 @@
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "dev:agent": "pnpm --filter @pulse-atx/agent dev",
     "dev:web": "pnpm --filter @pulse-atx/web dev",
+    "demo:malicious": "pnpm --filter @pulse-atx/scripts exec tsx inject-malicious-event.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",

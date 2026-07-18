@@ -52,4 +52,18 @@ describe("core schema migration", () => {
     expect(migration).toContain("insert into public.agent_decisions");
     expect(migration).toContain("set status = 'completed'");
   });
+
+  it("atomically quarantines blocked security events", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180004_hiddenlayer_security.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("insert into public.security_findings");
+    expect(migration).toContain("security_status = 'quarantined'");
+    expect(migration).toContain("status = 'quarantined'");
+  });
 });

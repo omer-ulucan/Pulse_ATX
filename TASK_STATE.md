@@ -1,6 +1,6 @@
 # Current Phase
 
-Phase 3 — vLLM and Nemotron Analysis
+Phase 4 — HiddenLayer Security
 
 # Status
 
@@ -8,27 +8,29 @@ complete
 
 # Completed Work
 
-- Phases 0 through 2 are committed.
-- Added atomic job claiming and analysis persistence, an OpenAI-compatible vLLM client, and versioned Nemotron prompts.
-- Added structured decision validation, one repair attempt, deterministic fallback, bounded concurrency, and inference metrics.
-- Integrated job processing into the persistent heartbeat without invoking the model when the queue is empty.
-- Added atomic incident, decision, timeline, raw-event, and job updates that stream through existing Realtime subscriptions.
+- Phases 0 through 3 are committed.
+- Added HiddenLayer interaction scanning for feed input, model prompts, model outputs, tool calls, tool results, and alert output.
+- Added atomic quarantine persistence and a malicious demo injection script.
+- Added a live Realtime security panel showing detection stage, severity, threat, and action.
+- Added a deterministic scanner fixture and realistic mocked HiddenLayer interaction responses.
 
 # Verification
 
-- `pnpm install` — passed after linking the prompts workspace package.
+- `pnpm install` — passed with the new scripts workspace.
 - `pnpm format:check` — passed.
 - `pnpm lint` — passed with zero warnings.
 - `pnpm typecheck` — passed for all applications and packages.
-- `pnpm test` — passed: 4 files, 12 tests including mocked vLLM, repair, fallback, atomic SQL contracts, heartbeat, and ingestion.
+- `pnpm test` — passed: 5 files, 17 tests including mocked HiddenLayer, all six scan stages, quarantine, and zero model calls for malicious input.
 - `pnpm build` — passed for the worker and Next.js app.
-- `pnpm --filter @pulse-atx/agent start -- --once` — passed; the empty queue caused no model invocation.
+- `pnpm --filter @pulse-atx/agent start -- --once` — passed in credential-free demo mode.
+- Built `/dashboard` smoke test — HTTP 200 and rendered the Runtime Security panel.
 
 # Missing Configuration
 
 - Supabase URL and keys are unavailable.
 - Docker Desktop must be started and `pnpm dlx supabase@2.58.5 db reset` run to apply the migration locally.
 - A running vLLM endpoint, API key if required, and served Nemotron model name are unavailable; mocked inference tests cover the integration.
+- HiddenLayer API credentials are unavailable; the official interaction contract is exercised with realistic mocked responses.
 
 # Known Issues
 
@@ -36,4 +38,4 @@ complete
 
 # Next Phase
 
-- Phase 4 — HiddenLayer Security
+- Phase 5 — pgvector Memory and Recursive Intelligence

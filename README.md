@@ -55,3 +55,9 @@ On startup it recovers stale Postgres jobs, polls only due sources, persists sou
 ## Nemotron through vLLM
 
 Set `VLLM_BASE_URL` to an OpenAI-compatible `/v1` endpoint and `NEMOTRON_MODEL` to the served model name. The worker claims at most eight jobs per heartbeat and runs at most four model requests concurrently. Structured responses are Zod-validated, repaired once, and replaced with a persisted deterministic fallback if validation still fails.
+
+## Runtime security
+
+The live worker sends feed input, model prompts, model output, tool arguments, tool results, and generated alert text to HiddenLayer's [`/detection/v1/interactions`](https://docs.hiddenlayer.ai/docs/products/console/runtime_security_interactions) runtime service. Blocking detections atomically quarantine the raw event and job, store a security finding, and prevent downstream execution.
+
+With Supabase configured, inject the deterministic attack scenario with `pnpm demo:malicious`.

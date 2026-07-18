@@ -11,6 +11,11 @@ import {
 import { z } from "zod";
 
 import { InferenceMetrics, type ChatModel } from "../models/types.js";
+import {
+  enforceSecurityScan,
+  SecurityBlockError,
+  type SecurityScanner,
+} from "../security/types.js";
 
 export interface AnalysisContext {
   event: Record<string, unknown>;
@@ -96,6 +101,7 @@ export class NemotronAnalyzer {
   constructor(
     private readonly model: ChatModel,
     metrics?: InferenceMetrics,
+    private readonly security?: SecurityScanner,
   ) {
     this.metrics = metrics ?? new InferenceMetrics(model.modelName);
   }
@@ -123,12 +129,37 @@ export class NemotronAnalyzer {
                 validationFailures.at(-1) ?? "Invalid JSON",
               )
             : prompt;
+        await enforceSecurityScan(
+          this.security,
+          "model_prompt",
+          userPrompt,
+          { attempt, model: this.model.modelName },
+          signal,
+        );
         previousOutput = await this.model.complete(
           INCIDENT_SYSTEM_PROMPT,
           userPrompt,
           signal,
         );
+        await enforceSecurityScan(
+          this.security,
+          "model_output",
+          previousOutput,
+          { attempt, model: this.model.modelName },
+          signal,
+        );
         const decision = parseDecision(previousOutput);
+        await enforceSecurityScan(
+          this.security,
+          "alert_output",
+          JSON.stringify({
+            recommended_actions: decision.recommended_actions,
+            summary: decision.summary,
+            title: decision.title,
+          }),
+          { attempt, model: this.model.modelName },
+          signal,
+        );
         this.metrics.recordStructuredOutput(true);
         return {
           attempts: attempt,
@@ -141,6 +172,7 @@ export class NemotronAnalyzer {
           validationFailures,
         };
       } catch (error) {
+        if (error instanceof SecurityBlockError) throw error;
         validationFailures.push(
           error instanceof z.ZodError
             ? z.prettifyError(error)
@@ -152,9 +184,21 @@ export class NemotronAnalyzer {
     }
 
     this.metrics.recordStructuredOutput(false);
+    const decision = fallbackDecision(context.event);
+    await enforceSecurityScan(
+      this.security,
+      "alert_output",
+      JSON.stringify({
+        recommended_actions: decision.recommended_actions,
+        summary: decision.summary,
+        title: decision.title,
+      }),
+      { fallback: true, model: this.model.modelName },
+      signal,
+    );
     return {
       attempts: 2,
-      decision: fallbackDecision(context.event),
+      decision,
       inputContext,
       latencyMs: Math.round(performance.now() - startedAt),
       modelName: this.model.modelName,

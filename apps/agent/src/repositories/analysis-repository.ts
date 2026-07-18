@@ -2,6 +2,8 @@ import type { IncidentDecision } from "@pulse-atx/schemas";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import type { SecurityScanResult } from "../security/types.js";
+
 const AnalysisJobSchema = z.object({
   attempts: z.number().int().positive(),
   event_type: z.string(),
@@ -40,6 +42,11 @@ export interface AnalysisRepository {
   persistAnalysis(
     workerId: string,
     analysis: PersistedAnalysis,
+  ): Promise<string>;
+  quarantineJob(
+    workerId: string,
+    job: AnalysisJob,
+    finding: SecurityScanResult,
   ): Promise<string>;
 }
 
@@ -94,6 +101,31 @@ export class SupabaseAnalysisRepository implements AnalysisRepository {
     })) as { data: unknown; error: { message: string } | null };
     if (response.error)
       throw new Error(`Analysis persistence failed: ${response.error.message}`);
+    return z.uuid().parse(response.data);
+  }
+
+  async quarantineJob(
+    workerId: string,
+    job: AnalysisJob,
+    finding: SecurityScanResult,
+  ): Promise<string> {
+    const primaryDetection = finding.detections[0];
+    const response = (await this.client.rpc("quarantine_event_job", {
+      p_action_taken: "quarantined",
+      p_details: {
+        ...finding.details,
+        detections: finding.detections,
+        providerEventId: finding.eventId,
+      },
+      p_job_id: job.id,
+      p_provider: finding.provider,
+      p_severity: primaryDetection?.severity ?? "high",
+      p_stage: finding.stage,
+      p_threat_type: primaryDetection?.category ?? "runtime_security_detection",
+      p_worker_id: workerId,
+    })) as { data: unknown; error: { message: string } | null };
+    if (response.error)
+      throw new Error(`Quarantine write failed: ${response.error.message}`);
     return z.uuid().parse(response.data);
   }
 }
