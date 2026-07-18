@@ -61,3 +61,14 @@ Set `VLLM_BASE_URL` to an OpenAI-compatible `/v1` endpoint and `NEMOTRON_MODEL` 
 The live worker sends feed input, model prompts, model output, tool arguments, tool results, and generated alert text to HiddenLayer's [`/detection/v1/interactions`](https://docs.hiddenlayer.ai/docs/products/console/runtime_security_interactions) runtime service. Blocking detections atomically quarantine the raw event and job, store a security finding, and prevent downstream execution.
 
 With Supabase configured, inject the deterministic attack scenario with `pnpm demo:malicious`.
+
+## Recursive incident memory
+
+Set `EMBEDDING_BASE_URL` to an OpenAI-compatible embeddings endpoint serving `EMBEDDING_MODEL`. Resolved incidents are recorded through an idempotent outcome RPC, converted into 384-dimensional pgvector memories, and retrieved before Nemotron predicts a similar event. Open `/learning` to inspect stored lessons and observed prediction error.
+
+The production adapter uses Austin's public traffic endpoint and rejects any row without a stable source identifier rather than inventing an ID. Tests use checked-in feed snapshots and mocked model/security endpoints for reproducibility; evaluation labels are explicit deterministic fixtures, not silently substituted live observations.
+
+```bash
+pnpm demo:replay
+pnpm evaluate:learning
+```

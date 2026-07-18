@@ -1,41 +1,40 @@
 # Current Phase
 
-Phase 4 — HiddenLayer Security
+Phase 6 — Cross-Feed Intelligence
 
 # Status
 
-complete
+in_progress
 
 # Completed Work
 
-- Phases 0 through 3 are committed.
-- Added HiddenLayer interaction scanning for feed input, model prompts, model outputs, tool calls, tool results, and alert output.
-- Added atomic quarantine persistence and a malicious demo injection script.
-- Added a live Realtime security panel showing detection stage, severity, threat, and action.
-- Added a deterministic scanner fixture and realistic mocked HiddenLayer interaction responses.
+- Phases 0 through 4 are committed.
+- Completed Phase 5 embedding client, outcome recording, pgvector HNSW search, lesson extraction, memory-aware analysis, historical replay, evaluation metrics, and learning dashboard.
+- Removed the unstable Austin feed `row-{index}` identifier fallback; records without a real source identifier are rejected and covered by tests.
+- Replaced inline similar-event test coordinates with the checked-in Austin feed fixture.
 
 # Verification
 
-- `pnpm install` — passed with the new scripts workspace.
-- `pnpm format:check` — passed.
+- `pnpm --filter @pulse-atx/agent test -- memory.test.ts ingestion.test.ts` — passed: 2 files, 8 tests.
 - `pnpm lint` — passed with zero warnings.
 - `pnpm typecheck` — passed for all applications and packages.
-- `pnpm test` — passed: 5 files, 17 tests including mocked HiddenLayer, all six scan stages, quarantine, and zero model calls for malicious input.
-- `pnpm build` — passed for the worker and Next.js app.
-- `pnpm --filter @pulse-atx/agent start -- --once` — passed in credential-free demo mode.
-- Built `/dashboard` smoke test — HTTP 200 and rendered the Runtime Security panel.
+- `pnpm test` — passed: 6 files, 23 tests.
+- `pnpm evaluate:learning` — passed: MAE improved from 19 to 3 minutes (84.21%) across 3 labeled replay fixtures.
+- `pnpm build` — passed for the worker and Next.js app, including `/learning`.
 
 # Missing Configuration
 
 - Supabase URL and keys are unavailable.
-- Docker Desktop must be started and `pnpm dlx supabase@2.58.5 db reset` run to apply the migration locally.
-- A running vLLM endpoint, API key if required, and served Nemotron model name are unavailable; mocked inference tests cover the integration.
-- HiddenLayer API credentials are unavailable; the official interaction contract is exercised with realistic mocked responses.
+- Docker Desktop must be started and `pnpm dlx supabase@2.58.5 db reset` run to apply migrations locally.
+- A running vLLM endpoint, optional API key, and served Nemotron model are unavailable; mocked inference tests cover the integration.
+- An OpenAI-compatible embedding endpoint is unavailable; mocked 384-dimensional embedding tests cover the integration.
+- HiddenLayer API credentials are unavailable; realistic mocked responses cover the official interaction contract.
 
 # Known Issues
 
-- The checked-in database types are generated-compatible and documented, but cannot be regenerated until a Supabase stack is available.
+- Database types cannot be regenerated from a live Supabase stack until Docker is available.
+- Historical outcome labels are explicit deterministic evaluation fixtures because no credentialed outcome source is available; live traffic ingestion still uses the configured Austin public endpoint.
 
 # Next Phase
 
-- Phase 5 — pgvector Memory and Recursive Intelligence
+- Phase 6 — Cross-Feed Intelligence

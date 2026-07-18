@@ -57,3 +57,52 @@ export async function mapBounded<T, R>(
   );
   return results;
 }
+
+export interface LearningEvaluationRecord {
+  actual: number;
+  predictedWithMemory: number;
+  predictedWithoutMemory: number;
+}
+
+export interface LearningEvaluation {
+  improvementPercent: number;
+  sampleCount: number;
+  withMemoryMae: number;
+  withoutMemoryMae: number;
+}
+
+export function evaluateLearning(
+  records: readonly LearningEvaluationRecord[],
+): LearningEvaluation {
+  if (records.length === 0) {
+    return {
+      improvementPercent: 0,
+      sampleCount: 0,
+      withMemoryMae: 0,
+      withoutMemoryMae: 0,
+    };
+  }
+  const withoutMemoryMae =
+    records.reduce(
+      (total, record) =>
+        total + Math.abs(record.predictedWithoutMemory - record.actual),
+      0,
+    ) / records.length;
+  const withMemoryMae =
+    records.reduce(
+      (total, record) =>
+        total + Math.abs(record.predictedWithMemory - record.actual),
+      0,
+    ) / records.length;
+  return {
+    improvementPercent:
+      withoutMemoryMae === 0
+        ? 0
+        : Math.round(
+            ((withoutMemoryMae - withMemoryMae) / withoutMemoryMae) * 10_000,
+          ) / 100,
+    sampleCount: records.length,
+    withMemoryMae: Math.round(withMemoryMae * 100) / 100,
+    withoutMemoryMae: Math.round(withoutMemoryMae * 100) / 100,
+  };
+}

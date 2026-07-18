@@ -143,6 +143,9 @@ importers:
 
   scripts:
     dependencies:
+      '@pulse-atx/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
       '@supabase/supabase-js':
         specifier: 2.80.0
         version: 2.80.0

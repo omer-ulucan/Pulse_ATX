@@ -5,6 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
 
 import { AustinTrafficFeedAdapter } from "./feeds/austin-traffic.js";
+import { EmbeddingClient } from "./memory/embedding-client.js";
+import { SupabaseLearningRepository } from "./memory/learning-repository.js";
+import { LessonExtractor } from "./memory/lesson-extractor.js";
+import { MemoryService } from "./memory/memory-service.js";
 import { VllmClient } from "./models/vllm-client.js";
 import { SupabaseAnalysisRepository } from "./repositories/analysis-repository.js";
 import { SupabaseEventRepository } from "./repositories/event-repository.js";
@@ -40,6 +44,7 @@ process.on("SIGTERM", () => stop("SIGTERM"));
 const scheduledSources: ScheduledSource[] = [];
 let runtimeRepository;
 let jobProcessor: AnalysisProcessor | undefined;
+let memoryService: MemoryService | undefined;
 if (environment.DEMO_MODE) {
   runtimeRepository = new MemoryRuntimeRepository();
 } else {
@@ -68,6 +73,18 @@ if (environment.DEMO_MODE) {
     ),
     requesterId: environment.WORKER_ID,
   });
+  memoryService = new MemoryService(
+    new EmbeddingClient({
+      apiKey: environment.EMBEDDING_API_KEY,
+      baseUrl: requireValue(
+        environment.EMBEDDING_BASE_URL,
+        "EMBEDDING_BASE_URL",
+      ),
+      modelName: requireValue(environment.EMBEDDING_MODEL, "EMBEDDING_MODEL"),
+    }),
+    new SupabaseLearningRepository(client),
+    new LessonExtractor(vllm, security),
+  );
   jobProcessor = new AnalysisProcessor(
     new SupabaseAnalysisRepository(client),
     new NemotronAnalyzer(vllm, vllm.metrics, security),
@@ -75,6 +92,7 @@ if (environment.DEMO_MODE) {
     8,
     4,
     security,
+    memoryService,
   );
   if (environment.AUSTIN_TRAFFIC_FEED_URL) {
     const ingestion = new IngestionService(
@@ -100,6 +118,7 @@ const worker = new HeartbeatWorker(
   () => new Date(),
   (summary) => logger.info(summary, "heartbeat completed"),
   jobProcessor,
+  memoryService,
 );
 
 logger.info(

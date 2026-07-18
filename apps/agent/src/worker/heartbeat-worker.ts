@@ -12,6 +12,7 @@ export interface HeartbeatOptions {
 
 export interface HeartbeatSummary {
   activeIncidents: number;
+  memoriesCreated: number;
   pendingJobs: number;
   pollOutcomes: SourcePollOutcome[];
   processing: AnalysisBatchSummary | null;
@@ -20,6 +21,10 @@ export interface HeartbeatSummary {
 
 export interface JobBatchProcessor {
   processBatch(signal?: AbortSignal): Promise<AnalysisBatchSummary>;
+}
+
+export interface MemoryConsolidator {
+  consolidateCompleted(limit?: number, signal?: AbortSignal): Promise<number>;
 }
 
 export class HeartbeatWorker {
@@ -31,6 +36,7 @@ export class HeartbeatWorker {
     private readonly onHeartbeat: (summary: HeartbeatSummary) => void = () =>
       undefined,
     private readonly jobProcessor?: JobBatchProcessor,
+    private readonly memoryConsolidator?: MemoryConsolidator,
   ) {}
 
   private async updateStatus(
@@ -44,6 +50,7 @@ export class HeartbeatWorker {
       ),
       lastHeartbeatAt: this.now().toISOString(),
       metadata: {
+        memoriesCreated: summary.memoriesCreated ?? 0,
         pollOutcomes: summary.pollOutcomes ?? [],
         processing: summary.processing ?? null,
         recoveredJobs: summary.recoveredJobs ?? 0,
@@ -66,9 +73,18 @@ export class HeartbeatWorker {
     const processing = this.jobProcessor
       ? await this.jobProcessor.processBatch(signal)
       : null;
+    const memoriesCreated = this.memoryConsolidator
+      ? await this.memoryConsolidator.consolidateCompleted(2, signal)
+      : 0;
     const metrics = await this.repository.getQueueMetrics();
     const degraded = pollOutcomes.some((outcome) => outcome.error !== null);
-    const summary = { ...metrics, pollOutcomes, processing, recoveredJobs };
+    const summary = {
+      ...metrics,
+      memoriesCreated,
+      pollOutcomes,
+      processing,
+      recoveredJobs,
+    };
     await this.updateStatus(degraded ? "degraded" : "healthy", summary);
     if (recoveredJobs > 0) {
       await this.repository.appendTimeline(

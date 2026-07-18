@@ -66,4 +66,20 @@ describe("core schema migration", () => {
     expect(migration).toContain("security_status = 'quarantined'");
     expect(migration).toContain("status = 'quarantined'");
   });
+
+  it("combines vector search with deterministic memory filters", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180005_recursive_memory.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("extensions.vector(384)");
+    expect(migration).toContain("memories.embedding <=> p_query_embedding");
+    expect(migration).toContain("incidents.incident_type = p_incident_type");
+    expect(migration).toContain("record_incident_outcome");
+    expect(migration).toContain("list_memory_candidates");
+  });
 });

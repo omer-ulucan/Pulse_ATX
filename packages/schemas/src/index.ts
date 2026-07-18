@@ -60,6 +60,26 @@ export const IncidentDecisionSchema = z.object({
 
 export type IncidentDecision = z.infer<typeof IncidentDecisionSchema>;
 
+export const IncidentLessonSchema = z.object({
+  adjustment_minutes: z.number().int().min(-240).max(240),
+  conditions: z.object({
+    event_type: z.string().min(1),
+    location_characteristics: z.array(z.string().min(1)).max(10),
+    time_bucket: z.enum([
+      "morning",
+      "afternoon",
+      "evening",
+      "overnight",
+      "unknown",
+    ]),
+    weather: z.string().min(1),
+  }),
+  lesson: z.string().min(1).max(1200),
+  recommended_action: z.string().min(1).max(500),
+});
+
+export type IncidentLesson = z.infer<typeof IncidentLessonSchema>;
+
 const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.url().optional(),
@@ -112,6 +132,8 @@ const AgentEnvironmentSchema = z
         "NEMOTRON_MODEL",
         "HIDDENLAYER_API_KEY",
         "HIDDENLAYER_BASE_URL",
+        "EMBEDDING_BASE_URL",
+        "EMBEDDING_MODEL",
       ] as const) {
         if (!value[key]) {
           context.addIssue({

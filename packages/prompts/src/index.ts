@@ -41,3 +41,20 @@ ${validationError}
 Invalid response:
 ${invalidOutput}`;
 }
+
+export interface LessonPromptInput {
+  incident: Record<string, unknown>;
+  outcome: Record<string, unknown>;
+}
+
+export function buildLessonPrompt(input: LessonPromptInput): string {
+  return `Prompt version: ${PROMPT_VERSIONS.lessonExtraction}
+
+Extract a reusable operational lesson from this completed incident. Do not use any future information outside the supplied completed outcome. Return JSON only with: lesson, adjustment_minutes, conditions {event_type,location_characteristics,time_bucket,weather}, recommended_action.
+
+Completed incident:
+${JSON.stringify(input.incident)}
+
+Observed outcome:
+${JSON.stringify(input.outcome)}`;
+}

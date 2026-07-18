@@ -33,6 +33,19 @@ describe("Austin traffic ingestion", () => {
     expect(event?.fingerprint).toHaveLength(64);
   });
 
+  it("rejects records without a stable source identifier", () => {
+    expect(() =>
+      normalizeAustinTrafficFeed([
+        {
+          address: "N LAMAR BLVD / W 24TH ST",
+          issue_reported: "COLLISION",
+          latitude: 30.2884,
+          longitude: -97.7417,
+        },
+      ]),
+    ).toThrow("missing a stable source identifier");
+  });
+
   it("ignores duplicates and creates a job for each changed revision", async () => {
     const initial = normalizeAustinTrafficFeed(
       await loadFixture("austin-traffic.json"),

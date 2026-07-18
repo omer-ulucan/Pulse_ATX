@@ -1,0 +1,44 @@
+[
+  {
+    "event": {
+      "traffic_report_id": "replay-lamar-001",
+      "issue_reported": "COLLISION - TWO LANES BLOCKED",
+      "traffic_report_status": "ACTIVE",
+      "address": "N LAMAR BLVD / W 24TH ST",
+      "latitude": 30.2884,
+      "longitude": -97.7417,
+      "published_date": "2026-06-12T13:10:00.000Z"
+    },
+    "actual": 42,
+    "predictedWithoutMemory": 24,
+    "predictedWithMemory": 39
+  },
+  {
+    "event": {
+      "traffic_report_id": "replay-guadalupe-002",
+      "issue_reported": "COLLISION WITH INJURY",
+      "traffic_report_status": "ACTIVE",
+      "address": "GUADALUPE ST / W 29TH ST",
+      "latitude": 30.2958,
+      "longitude": -97.7424,
+      "published_date": "2026-06-18T23:20:00.000Z"
+    },
+    "actual": 51,
+    "predictedWithoutMemory": 28,
+    "predictedWithMemory": 47
+  },
+  {
+    "event": {
+      "traffic_report_id": "replay-mopac-003",
+      "issue_reported": "VEHICLE FIRE - RIGHT LANE BLOCKED",
+      "traffic_report_status": "ACTIVE",
+      "address": "MOPAC EXPY / BEE CAVES RD",
+      "latitude": 30.2652,
+      "longitude": -97.7942,
+      "published_date": "2026-06-24T08:05:00.000Z"
+    },
+    "actual": 36,
+    "predictedWithoutMemory": 20,
+    "predictedWithMemory": 34
+  }
+]

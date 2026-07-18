@@ -47,11 +47,14 @@ function optionalIsoDate(value: string | undefined): string | null {
 export function normalizeAustinTrafficFeed(input: unknown): NormalizedEvent[] {
   const records = AustinTrafficFeedSchema.parse(input);
   return records.map((record, index) => {
-    const externalId =
-      record.traffic_report_id ??
-      record.incident_id ??
-      record.id ??
-      `row-${index}`;
+    const externalId = [record.traffic_report_id, record.incident_id, record.id]
+      .map((value) => value?.trim())
+      .find((value): value is string => Boolean(value));
+    if (!externalId) {
+      throw new Error(
+        `Austin traffic record ${index} is missing a stable source identifier`,
+      );
+    }
     const latitude = record.latitude ?? record.location?.latitude ?? null;
     const longitude = record.longitude ?? record.location?.longitude ?? null;
     const status = record.traffic_report_status ?? record.status ?? "UNKNOWN";

@@ -17,6 +17,13 @@ export interface AnalysisBatchSummary {
   quarantined: number;
 }
 
+export interface AnalysisMemoryProvider {
+  retrieveForEvent(
+    event: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>[]>;
+}
+
 export class AnalysisProcessor {
   constructor(
     private readonly repository: AnalysisRepository,
@@ -25,6 +32,7 @@ export class AnalysisProcessor {
     private readonly maxBatchSize = 8,
     private readonly concurrency = 4,
     private readonly security?: SecurityScanner,
+    private readonly memory?: AnalysisMemoryProvider,
   ) {}
 
   async processBatch(signal?: AbortSignal): Promise<AnalysisBatchSummary> {
@@ -41,14 +49,19 @@ export class AnalysisProcessor {
           { rawEventId: job.rawEventId, source: job.source },
           signal,
         );
+        const event = {
+          ...job.payload,
+          event_type: job.eventType,
+          source: job.source,
+          source_updated_at: job.sourceUpdatedAt,
+        };
+        const retrievedMemories = this.memory
+          ? await this.memory.retrieveForEvent(event, signal)
+          : [];
         const result = await this.analyzer.analyze(
           {
-            event: {
-              ...job.payload,
-              event_type: job.eventType,
-              source: job.source,
-              source_updated_at: job.sourceUpdatedAt,
-            },
+            event,
+            retrievedMemories,
           },
           signal,
         );
