@@ -1,6 +1,6 @@
 # Current Phase
 
-Phase 1 — Supabase Schema and Live Event Ingestion
+Phase 2 — Persistent Heartbeat and Realtime Dashboard
 
 # Status
 
@@ -8,22 +8,23 @@ complete
 
 # Completed Work
 
-- Phase 0 committed as `phase 0: repository foundation`.
-- Added the Supabase core schema, pgvector, RLS, Realtime publication, and atomic ingestion RPC.
-- Added Austin traffic normalization, fingerprints, repositories, source health, fixtures, and tests.
-- Added a minimal live events page backed by the Supabase REST API.
-- Added documented generated-compatible database types and local Supabase commands.
+- Phases 0 and 1 are committed.
+- Added source scheduling, persistent heartbeat orchestration, agent health, graceful shutdown, and stale-job startup recovery.
+- Added Supabase-backed runtime persistence and deterministic in-memory test repositories.
+- Added Realtime event, incident, timeline, alert, security, source-health, and agent-health subscriptions with reconnect backoff.
+- Added analyzing-state map markers, health metrics, and a streaming agent timeline.
 
 # Verification
 
-- `pnpm install` — passed after adding Supabase and Vitest dependencies.
+- `pnpm install` — passed after adding dotenv.
 - `pnpm format:check` — passed.
 - `pnpm lint` — passed with zero warnings.
 - `pnpm typecheck` — passed for all applications and packages.
-- `pnpm test` — passed: 2 files, 4 tests covering fixtures, deduplication, revision jobs, source health, and migration constraints.
+- `pnpm test` — passed: 3 files, 8 tests including scheduling, startup recovery, degraded health, and unchanged-event behavior.
 - `pnpm build` — passed for the worker and Next.js app.
-- Built `/live` smoke test — returned HTTP 200 and rendered the live events view.
-- Local migration apply — not run because the Supabase CLI is absent and the installed Docker Desktop engine is not running; SQL behavior is covered by repository and migration-contract tests.
+- `pnpm --filter @pulse-atx/agent start -- --once` — passed; one heartbeat completed and shut down safely.
+- Built `/dashboard` smoke test — HTTP 200 with the operations map and agent timeline.
+- Live Supabase Realtime integration cannot be exercised without the missing Supabase URL and keys; the compiled subscription and reconnect path is active when configured.
 
 # Missing Configuration
 
@@ -36,4 +37,4 @@ complete
 
 # Next Phase
 
-- Phase 2 — Persistent Heartbeat and Realtime Dashboard
+- Phase 3 — vLLM and Nemotron Analysis

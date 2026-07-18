@@ -15,6 +15,7 @@
     "@pulse-atx/schemas": "workspace:*",
     "@pulse-atx/shared": "workspace:*",
     "@supabase/supabase-js": "2.80.0",
+    "dotenv": "17.2.3",
     "pino": "9.14.0",
     "zod": "4.1.12"
   },

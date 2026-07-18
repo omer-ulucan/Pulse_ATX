@@ -41,3 +41,13 @@ pnpm dlx supabase@2.58.5 db reset
 ```
 
 The worker uses `public.ingest_raw_event` so the raw event revision and its processing job are created atomically. Repeated fingerprints return the existing revision without creating another job.
+
+## Persistent worker
+
+The heartbeat is a separate TypeScript process; it never runs in Next.js or Vercel:
+
+```bash
+pnpm dev:agent
+```
+
+On startup it recovers stale Postgres jobs, polls only due sources, persists source and agent health, and shuts down cleanly on `SIGINT` or `SIGTERM`. Open `/dashboard` for the reconnecting Supabase Realtime view.

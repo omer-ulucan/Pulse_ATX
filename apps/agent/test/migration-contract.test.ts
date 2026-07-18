@@ -21,4 +21,20 @@ describe("core schema migration", () => {
     );
     expect(migration).toContain("existing_event.fingerprint = p_fingerprint");
   });
+
+  it("defines stale processing recovery", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180002_heartbeat_queue.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("recover_stale_event_jobs");
+    expect(migration).toContain("status = 'processing'");
+    expect(migration).toContain(
+      "status = case when attempts >= p_max_attempts",
+    );
+  });
 });

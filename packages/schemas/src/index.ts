@@ -38,6 +38,11 @@ const booleanString = z
   .enum(["true", "false"])
   .default("true")
   .transform((value) => value === "true");
+const integerString = (
+  defaultValue: number,
+  minimum: number,
+  maximum: number,
+) => z.coerce.number().int().min(minimum).max(maximum).default(defaultValue);
 
 const AgentEnvironmentSchema = z
   .object({
@@ -50,6 +55,7 @@ const AgentEnvironmentSchema = z
     EMBEDDING_MODEL: optionalString,
     HIDDENLAYER_API_KEY: optionalString,
     HIDDENLAYER_BASE_URL: optionalUrl,
+    HEARTBEAT_INTERVAL_MS: integerString(5_000, 1_000, 60_000),
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace"])
       .default("info"),
@@ -57,6 +63,8 @@ const AgentEnvironmentSchema = z
     NOAA_ALERTS_URL: optionalUrl,
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
     SUPABASE_URL: optionalUrl,
+    STALE_JOB_AFTER_MS: integerString(120_000, 10_000, 3_600_000),
+    TRAFFIC_POLL_INTERVAL_MS: integerString(10_000, 5_000, 300_000),
     VLLM_API_KEY: optionalString,
     VLLM_BASE_URL: optionalUrl,
     WORKER_ID: z.string().min(1).default("pulse-atx-local"),
