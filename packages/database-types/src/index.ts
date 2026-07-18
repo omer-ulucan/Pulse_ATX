@@ -1,0 +1,17 @@
+export type Json =
+  | boolean
+  | null
+  | number
+  | string
+  | Json[]
+  | { [key: string]: Json | undefined };
+
+export interface Database {
+  public: {
+    Tables: Record<string, never>;
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+}
