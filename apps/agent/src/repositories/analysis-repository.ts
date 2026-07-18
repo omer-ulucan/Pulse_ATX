@@ -1,7 +1,12 @@
-import type { IncidentDecision } from "@pulse-atx/schemas";
+import { EventSourceSchema, type IncidentDecision } from "@pulse-atx/schemas";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import type {
+  CorrelationCandidate,
+  CorrelationDecision,
+  CrossFeedRepository,
+} from "../correlation/types.js";
 import type { SecurityScanResult } from "../security/types.js";
 
 const AnalysisJobSchema = z.object({
@@ -36,7 +41,7 @@ export interface PersistedAnalysis {
   usedFallback: boolean;
 }
 
-export interface AnalysisRepository {
+export interface AnalysisRepository extends CrossFeedRepository {
   claimJobs(workerId: string, limit: number): Promise<AnalysisJob[]>;
   failJob(jobId: string, workerId: string, error: string): Promise<void>;
   persistAnalysis(
@@ -49,6 +54,20 @@ export interface AnalysisRepository {
     finding: SecurityScanResult,
   ): Promise<string>;
 }
+
+const CorrelationCandidateRowSchema = z.object({
+  event_type: z.string(),
+  incident_id: z.uuid(),
+  latitude: z.number().nullable(),
+  location_name: z.string().nullable(),
+  longitude: z.number().nullable(),
+  occurred_at: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  predicted_duration_minutes: z.number().int().nonnegative().nullable(),
+  severity: z.number().int().min(1).max(5).nullable(),
+  source: z.string(),
+  summary: z.string(),
+});
 
 export class SupabaseAnalysisRepository implements AnalysisRepository {
   constructor(private readonly client: SupabaseClient) {}
@@ -73,6 +92,66 @@ export class SupabaseAnalysisRepository implements AnalysisRepository {
         source: row.source,
         sourceUpdatedAt: row.source_updated_at,
       }));
+  }
+
+  async listCorrelationCandidates(
+    rawEventId: string,
+  ): Promise<CorrelationCandidate[]> {
+    const response = (await this.client.rpc("list_cross_feed_candidates", {
+      p_raw_event_id: rawEventId,
+    })) as { data: unknown; error: { message: string } | null };
+    if (response.error)
+      throw new Error(
+        `Correlation candidate lookup failed: ${response.error.message}`,
+      );
+    return z
+      .array(CorrelationCandidateRowSchema)
+      .parse(response.data)
+      .map((row) => ({
+        incidentId: row.incident_id,
+        predictedDurationMinutes: row.predicted_duration_minutes ?? 0,
+        severity: row.severity ?? 1,
+        signal: {
+          durationDeltaMinutes:
+            typeof row.payload.transit_delay_minutes === "number"
+              ? row.payload.transit_delay_minutes
+              : 0,
+          eventType: row.event_type,
+          latitude: row.latitude,
+          locationName: row.location_name,
+          longitude: row.longitude,
+          occurredAt: row.occurred_at,
+          routeIds: Array.isArray(row.payload.route_ids)
+            ? row.payload.route_ids.filter(
+                (item): item is string => typeof item === "string",
+              )
+            : [],
+          severity:
+            typeof row.payload.severity_score === "number"
+              ? row.payload.severity_score
+              : (row.severity ?? 1),
+          source: EventSourceSchema.parse(row.source),
+          summary: row.summary,
+        },
+      }));
+  }
+
+  async persistCorrelation(
+    workerId: string,
+    job: AnalysisJob,
+    decision: CorrelationDecision,
+  ): Promise<string> {
+    const response = (await this.client.rpc("apply_cross_feed_correlation", {
+      p_decision: decision,
+      p_incident_id: decision.candidateIncidentId,
+      p_job_id: job.id,
+      p_worker_id: workerId,
+    })) as { data: unknown; error: { message: string } | null };
+    if (response.error)
+      throw new Error(
+        `Correlation persistence failed: ${response.error.message}`,
+      );
+    return z.uuid().parse(response.data);
   }
 
   async failJob(jobId: string, workerId: string, error: string): Promise<void> {

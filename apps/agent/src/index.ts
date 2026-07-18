@@ -4,6 +4,9 @@ import { loadAgentEnvironment } from "@pulse-atx/schemas";
 import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
 
+import { CrossFeedCorrelationService } from "./correlation/cross-feed-correlator.js";
+import { CapMetroAlertsFeedAdapter } from "./feeds/capmetro-alerts.js";
+import { NoaaAlertsFeedAdapter } from "./feeds/noaa-alerts.js";
 import { AustinTrafficFeedAdapter } from "./feeds/austin-traffic.js";
 import { EmbeddingClient } from "./memory/embedding-client.js";
 import { SupabaseLearningRepository } from "./memory/learning-repository.js";
@@ -85,14 +88,16 @@ if (environment.DEMO_MODE) {
     new SupabaseLearningRepository(client),
     new LessonExtractor(vllm, security),
   );
+  const analysisRepository = new SupabaseAnalysisRepository(client);
   jobProcessor = new AnalysisProcessor(
-    new SupabaseAnalysisRepository(client),
+    analysisRepository,
     new NemotronAnalyzer(vllm, vllm.metrics, security),
     environment.WORKER_ID,
     8,
     4,
     security,
     memoryService,
+    new CrossFeedCorrelationService(analysisRepository),
   );
   if (environment.AUSTIN_TRAFFIC_FEED_URL) {
     const ingestion = new IngestionService(
@@ -102,6 +107,28 @@ if (environment.DEMO_MODE) {
     scheduledSources.push({
       id: "austin_traffic",
       intervalMs: environment.TRAFFIC_POLL_INTERVAL_MS,
+      poll: (signal) => ingestion.poll(signal),
+    });
+  }
+  if (environment.CAPMETRO_FEED_URL) {
+    const ingestion = new IngestionService(
+      new CapMetroAlertsFeedAdapter(environment.CAPMETRO_FEED_URL),
+      new SupabaseEventRepository(client),
+    );
+    scheduledSources.push({
+      id: "capmetro",
+      intervalMs: environment.TRANSIT_POLL_INTERVAL_MS,
+      poll: (signal) => ingestion.poll(signal),
+    });
+  }
+  if (environment.NOAA_ALERTS_URL) {
+    const ingestion = new IngestionService(
+      new NoaaAlertsFeedAdapter(environment.NOAA_ALERTS_URL),
+      new SupabaseEventRepository(client),
+    );
+    scheduledSources.push({
+      id: "noaa_weather",
+      intervalMs: environment.WEATHER_POLL_INTERVAL_MS,
       poll: (signal) => ingestion.poll(signal),
     });
   }

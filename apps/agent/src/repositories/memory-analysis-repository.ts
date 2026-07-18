@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import type { SecurityScanResult } from "../security/types.js";
+import type {
+  CorrelationCandidate,
+  CorrelationDecision,
+} from "../correlation/types.js";
 
 import type {
   AnalysisJob,
@@ -13,6 +17,8 @@ interface MemoryQueuedJob extends AnalysisJob {
 }
 
 export class MemoryAnalysisRepository implements AnalysisRepository {
+  readonly correlationCandidates: CorrelationCandidate[] = [];
+  readonly correlations: CorrelationDecision[] = [];
   readonly jobs: MemoryQueuedJob[] = [];
   readonly persisted: (PersistedAnalysis & { incidentId: string })[] = [];
   readonly quarantined: { finding: SecurityScanResult; job: AnalysisJob }[] =
@@ -46,6 +52,26 @@ export class MemoryAnalysisRepository implements AnalysisRepository {
       job.attempts += 1;
     }
     return Promise.resolve(claimed);
+  }
+
+  listCorrelationCandidates(
+    rawEventId: string,
+  ): Promise<CorrelationCandidate[]> {
+    void rawEventId;
+    return Promise.resolve(this.correlationCandidates);
+  }
+
+  persistCorrelation(
+    _workerId: string,
+    job: AnalysisJob,
+    decision: CorrelationDecision,
+  ): Promise<string> {
+    const stored = this.jobs.find((item) => item.id === job.id);
+    if (!stored || stored.status !== "processing")
+      return Promise.reject(new Error("Job was not claimed"));
+    stored.status = "completed";
+    this.correlations.push(decision);
+    return Promise.resolve(decision.candidateIncidentId);
   }
 
   failJob(jobId: string, workerId: string, error: string): Promise<void> {

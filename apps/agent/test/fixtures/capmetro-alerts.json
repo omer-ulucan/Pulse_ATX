@@ -1,0 +1,31 @@
+{
+  "header": {
+    "gtfsRealtimeVersion": "2.0",
+    "incrementality": "FULL_DATASET",
+    "timestamp": 1784401200
+  },
+  "entity": [
+    {
+      "id": "capmetro-fixture-alert-801",
+      "alert": {
+        "activePeriod": [{ "start": 1784400300, "end": 1784408400 }],
+        "informedEntity": [{ "agencyId": "CMTA", "routeId": "801" }],
+        "cause": "ACCIDENT",
+        "effect": "SIGNIFICANT_DELAYS",
+        "headerText": {
+          "translation": [
+            { "text": "Route 801 delay near North Lamar", "language": "en" }
+          ]
+        },
+        "descriptionText": {
+          "translation": [
+            {
+              "text": "North Lamar and West 24th traffic incident is delaying Route 801.",
+              "language": "en"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

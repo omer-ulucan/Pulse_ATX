@@ -72,3 +72,9 @@ The production adapter uses Austin's public traffic endpoint and rejects any row
 pnpm demo:replay
 pnpm evaluate:learning
 ```
+
+## Cross-feed intelligence
+
+The worker polls the [NWS active-alerts API](https://www.weather.gov/documentation/services-web-api) no more than once per minute and the [CapMetro GTFS-Realtime service-alert dataset](https://www.capmetro.org/developertools) every 30 seconds. NOAA GeoJSON polygons provide deterministic spatial evidence; CapMetro effects derive bounded delay and severity anomalies.
+
+Before model execution, supporting events are compared with active incidents using a two-hour time window, Haversine distance, affected routes, and location terms. A qualifying event is attached through one atomic RPC that escalates severity or duration and completes the job without creating another incident.

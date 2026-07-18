@@ -1,5 +1,6 @@
 export interface FetchJsonOptions {
   etag?: string | undefined;
+  headers?: RequestInit["headers"] | undefined;
   lastModified?: string | undefined;
   signal?: AbortSignal | undefined;
   timeoutMs: number;
@@ -21,7 +22,8 @@ export async function fetchJson(
   const signal = options.signal
     ? AbortSignal.any([options.signal, timeout])
     : timeout;
-  const headers = new Headers({ Accept: "application/json" });
+  const headers = new Headers(options.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (options.etag) headers.set("If-None-Match", options.etag);
   if (options.lastModified)
     headers.set("If-Modified-Since", options.lastModified);

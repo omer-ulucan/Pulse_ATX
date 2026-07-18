@@ -82,4 +82,19 @@ describe("core schema migration", () => {
     expect(migration).toContain("record_incident_outcome");
     expect(migration).toContain("list_memory_candidates");
   });
+
+  it("defines atomic cross-feed correlation RPCs", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180006_cross_feed_intelligence.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("list_cross_feed_candidates");
+    expect(migration).toContain("apply_cross_feed_correlation");
+    expect(migration).toContain("'correlated'");
+    expect(migration).toContain("greatest(coalesce(severity, 1)");
+  });
 });

@@ -1,5 +1,6 @@
 import { mapBounded } from "@pulse-atx/shared";
 
+import type { CrossFeedCorrelationService } from "../correlation/cross-feed-correlator.js";
 import type { InferenceMetricsSnapshot } from "../models/types.js";
 import type { AnalysisRepository } from "../repositories/analysis-repository.js";
 import {
@@ -33,6 +34,7 @@ export class AnalysisProcessor {
     private readonly concurrency = 4,
     private readonly security?: SecurityScanner,
     private readonly memory?: AnalysisMemoryProvider,
+    private readonly correlation?: CrossFeedCorrelationService,
   ) {}
 
   async processBatch(signal?: AbortSignal): Promise<AnalysisBatchSummary> {
@@ -49,6 +51,11 @@ export class AnalysisProcessor {
           { rawEventId: job.rawEventId, source: job.source },
           signal,
         );
+        const correlatedIncidentId = await this.correlation?.correlate(
+          job,
+          this.workerId,
+        );
+        if (correlatedIncidentId) return "completed" as const;
         const event = {
           ...job.payload,
           event_type: job.eventType,
