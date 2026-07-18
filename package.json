@@ -14,6 +14,7 @@
     "demo:malicious": "pnpm --filter @pulse-atx/scripts exec tsx inject-malicious-event.ts",
     "demo:containment": "pnpm --filter @pulse-atx/scripts exec tsx demo-containment.ts",
     "demo:replay": "pnpm --filter @pulse-atx/scripts exec tsx replay-incidents.ts",
+    "demo:scenarios": "pnpm --filter @pulse-atx/scripts exec tsx run-demo.ts",
     "evaluate:learning": "pnpm --filter @pulse-atx/scripts exec tsx evaluate-learning.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

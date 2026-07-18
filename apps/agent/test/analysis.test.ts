@@ -1,5 +1,8 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it } from "vitest";
 
+import { normalizeAustinTrafficFeed } from "../src/feeds/austin-traffic.js";
 import type { ChatModel } from "../src/models/types.js";
 import { VllmClient } from "../src/models/vllm-client.js";
 import { MemoryAnalysisRepository } from "../src/repositories/memory-analysis-repository.js";
@@ -24,6 +27,16 @@ const validDecision = {
   summary: "A lane-blocking collision is disrupting North Lamar Boulevard.",
   title: "Collision blocking North Lamar lanes",
 };
+
+async function loadTrafficPayload(name: string) {
+  const [event] = normalizeAustinTrafficFeed(
+    JSON.parse(
+      await readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8"),
+    ) as unknown,
+  );
+  if (!event) throw new Error(`Fixture ${name} contained no traffic event`);
+  return event.payload;
+}
 
 class MockChatModel implements ChatModel {
   readonly modelName = "nemotron-mock";
@@ -88,10 +101,7 @@ describe("Nemotron analysis", () => {
       JSON.stringify(validDecision),
     ]);
     const repository = new MemoryAnalysisRepository();
-    repository.addJob({
-      address: "N LAMAR BLVD / W 24TH ST",
-      issue_reported: "COLLISION WITH INJURY - TWO LANES BLOCKED",
-    });
+    repository.addJob(await loadTrafficPayload("austin-traffic-changed.json"));
     const processor = new AnalysisProcessor(
       repository,
       new NemotronAnalyzer(model),
@@ -113,10 +123,7 @@ describe("Nemotron analysis", () => {
 
   it("uses a deterministic fallback after two invalid responses", async () => {
     const repository = new MemoryAnalysisRepository();
-    repository.addJob({
-      address: "N LAMAR BLVD",
-      issue_reported: "COLLISION WITH INJURY - ROAD BLOCKED",
-    });
+    repository.addJob(await loadTrafficPayload("austin-traffic.json"));
     const analyzer = new NemotronAnalyzer(
       new MockChatModel(["{", "still invalid"]),
     );

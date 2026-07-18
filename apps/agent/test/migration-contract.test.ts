@@ -129,4 +129,35 @@ describe("core schema migration", () => {
     expect(migration).toContain("approve_alert");
     expect(migration).toContain("run_demo_scenario");
   });
+
+  it("defines idempotent complete demo scenarios", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180009_final_demo_hardening.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("unique (scenario, nonce)");
+    expect(migration).toContain("'cross_feed'");
+    expect(migration).toContain("'recursive_memory'");
+    expect(migration).toContain("public.store_incident_memory");
+    expect(migration).toContain("'cross_feed_correlation'");
+  });
+
+  it("uses the named job constraint to avoid PL/pgSQL output ambiguity", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607180010_ingestion_ambiguity_fix.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain(
+      "on conflict on constraint event_jobs_raw_event_id_raw_event_revision_job_type_key",
+    );
+    expect(migration).toContain("where jobs.raw_event_id = stored_event.id");
+  });
 });

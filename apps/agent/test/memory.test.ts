@@ -24,27 +24,9 @@ async function loadFixture(name: string): Promise<unknown> {
   return JSON.parse(text) as unknown;
 }
 
-const candidate: CompletedIncident = {
-  incident: {
-    actual_duration_minutes: 40,
-    id: "10000000-0000-4000-8000-000000000001",
-    incident_type: "traffic_incident",
-    latitude: 30.2884,
-    location_name: "N LAMAR BLVD / W 24TH ST",
-    longitude: -97.7417,
-    predicted_duration_minutes: 22,
-    severity: 4,
-    started_at: "2026-06-12T13:10:00.000Z",
-    summary: "Two lanes were blocked after a collision.",
-    title: "North Lamar collision",
-  },
-  outcome: {
-    actual_duration_minutes: 40,
-    observed_severity: 4,
-    outcome: { weather: "heavy rain" },
-    prediction_error: 18,
-  },
-};
+async function loadCompletedIncidentFixture(): Promise<CompletedIncident> {
+  return (await loadFixture("completed-incident.json")) as CompletedIncident;
+}
 
 class FixedEmbedding implements EmbeddingProvider {
   embed(): Promise<number[]> {
@@ -135,7 +117,7 @@ describe("recursive incident memory", () => {
 
   it("creates and retrieves a memory for a completed incident", async () => {
     const repository = new MemoryLearningRepository();
-    repository.candidates.push(candidate);
+    repository.candidates.push(await loadCompletedIncidentFixture());
     const service = new MemoryService(
       new FixedEmbedding(),
       repository,
@@ -166,12 +148,13 @@ describe("recursive incident memory", () => {
       new LessonExtractor(new LessonModel()),
     );
     const model = new AdaptiveAnalysisModel();
+    const [similarEvent] = normalizeAustinTrafficFeed(
+      await loadFixture("austin-traffic.json"),
+    );
+    expect(similarEvent).toBeDefined();
 
     const beforeRepository = new MemoryAnalysisRepository();
-    beforeRepository.addJob({
-      address: "N LAMAR BLVD / W 24TH ST",
-      issue_reported: "COLLISION - TWO LANES BLOCKED",
-    });
+    beforeRepository.addJob(similarEvent?.payload ?? {});
     await new AnalysisProcessor(
       beforeRepository,
       new NemotronAnalyzer(model),
@@ -182,13 +165,10 @@ describe("recursive incident memory", () => {
       memory,
     ).processBatch();
 
-    learningRepository.candidates.push(candidate);
+    learningRepository.candidates.push(await loadCompletedIncidentFixture());
     await memory.consolidateCompleted();
     const afterRepository = new MemoryAnalysisRepository();
-    afterRepository.addJob({
-      address: "N LAMAR BLVD / W 24TH ST",
-      issue_reported: "COLLISION - TWO LANES BLOCKED",
-    });
+    afterRepository.addJob(similarEvent?.payload ?? {});
     await new AnalysisProcessor(
       afterRepository,
       new NemotronAnalyzer(model),

@@ -11,6 +11,8 @@ import type {
 
 const scenarios = [
   { id: "benign", label: "Benign traffic" },
+  { id: "cross_feed", label: "Cross-feed escalation" },
+  { id: "recursive_memory", label: "Recursive memory" },
   { id: "prompt_injection", label: "Prompt injection" },
   { id: "exfiltration", label: "Exfiltration attempt" },
   { id: "critical_approval", label: "Critical approval" },
@@ -56,6 +58,7 @@ export function SecurityConsole({ snapshot }: { snapshot: SecuritySnapshot }) {
         method: "POST",
       };
       if (body) request.body = JSON.stringify(body);
+      request.signal = AbortSignal.timeout(10_000);
       const response = await fetch(
         `${snapshot.controlUrl.replace(/\/$/, "")}${path}`,
         request,
@@ -110,7 +113,6 @@ export function SecurityConsole({ snapshot }: { snapshot: SecuritySnapshot }) {
             <input
               className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-slate-100 outline-none focus:border-emerald-300/50"
               onChange={(event) => setOperator(event.target.value)}
-              placeholder="Austin EOC operator"
               value={operator}
             />
           </label>

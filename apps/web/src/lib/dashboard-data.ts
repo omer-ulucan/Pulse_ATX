@@ -76,6 +76,7 @@ async function fetchRows<T>(
   const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
     cache: "no-store",
     headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok)
     throw new Error(

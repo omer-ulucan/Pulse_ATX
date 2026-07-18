@@ -6,6 +6,7 @@ import {
   CrossFeedCorrelationService,
   correlateSignals,
 } from "../src/correlation/cross-feed-correlator.js";
+import { normalizeAustinTrafficFeed } from "../src/feeds/austin-traffic.js";
 import { normalizeCapMetroAlerts } from "../src/feeds/capmetro-alerts.js";
 import { normalizeNoaaAlerts } from "../src/feeds/noaa-alerts.js";
 import type { ChatModel } from "../src/models/types.js";
@@ -29,23 +30,29 @@ class CountingModel implements ChatModel {
   }
 }
 
-const trafficCandidate = {
-  incidentId: "10000000-0000-4000-8000-000000000006",
-  predictedDurationMinutes: 30,
-  severity: 3,
-  signal: {
-    durationDeltaMinutes: 0,
-    eventType: "traffic_incident",
-    latitude: 30.2884,
-    locationName: "N LAMAR BLVD / W 24TH ST",
-    longitude: -97.7417,
-    occurredAt: "2026-07-18T18:30:00.000Z",
-    routeIds: ["801"],
+async function loadTrafficCandidate() {
+  const [event] = normalizeAustinTrafficFeed(
+    await loadFixture("cross-feed-traffic.json"),
+  );
+  if (!event) throw new Error("Cross-feed traffic fixture contained no event");
+  return {
+    incidentId: "10000000-0000-4000-8000-000000000006",
+    predictedDurationMinutes: 30,
     severity: 3,
-    source: "austin_traffic" as const,
-    summary: "Two lanes blocked on North Lamar",
-  },
-};
+    signal: {
+      durationDeltaMinutes: 0,
+      eventType: event.eventType,
+      latitude: event.latitude,
+      locationName: event.locationName,
+      longitude: event.longitude,
+      occurredAt: event.sourceUpdatedAt ?? "",
+      routeIds: ["801"],
+      severity: 3,
+      source: event.source,
+      summary: event.summary,
+    },
+  };
+}
 
 describe("cross-feed intelligence", () => {
   it("normalizes a NOAA GeoJSON alert with a spatial center", async () => {
@@ -82,6 +89,7 @@ describe("cross-feed intelligence", () => {
     const [weather] = normalizeNoaaAlerts(
       await loadFixture("noaa-alerts.json"),
     );
+    const trafficCandidate = await loadTrafficCandidate();
     expect(weather).toBeDefined();
     const decision = correlateSignals(
       {
@@ -108,18 +116,12 @@ describe("cross-feed intelligence", () => {
 
   it("attaches a supporting feed without creating a duplicate incident", async () => {
     const repository = new MemoryAnalysisRepository();
-    repository.correlationCandidates.push(trafficCandidate);
-    const job = repository.addJob(
-      {
-        areaDesc: "Travis County",
-        headline: "Flash Flood Warning for central Austin",
-        latitude: 30.286,
-        longitude: -97.744,
-        sent: "2026-07-18T18:40:00.000Z",
-        severity_score: 4,
-      },
-      "weather_alert",
+    repository.correlationCandidates.push(await loadTrafficCandidate());
+    const [weather] = normalizeNoaaAlerts(
+      await loadFixture("noaa-alerts.json"),
     );
+    if (!weather) throw new Error("NOAA fixture contained no alert");
+    const job = repository.addJob(weather.payload, weather.eventType);
     job.source = "noaa_weather";
     const model = new CountingModel();
 

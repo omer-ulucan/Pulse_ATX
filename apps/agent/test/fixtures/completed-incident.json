@@ -1,0 +1,23 @@
+{
+  "incident": {
+    "actual_duration_minutes": 40,
+    "id": "10000000-0000-4000-8000-000000000001",
+    "incident_type": "traffic_incident",
+    "latitude": 30.2884,
+    "location_name": "N LAMAR BLVD / W 24TH ST",
+    "longitude": -97.7417,
+    "predicted_duration_minutes": 22,
+    "severity": 4,
+    "started_at": "2026-06-12T13:10:00.000Z",
+    "summary": "Two lanes were blocked after a collision.",
+    "title": "North Lamar collision"
+  },
+  "outcome": {
+    "actual_duration_minutes": 40,
+    "observed_severity": 4,
+    "outcome": {
+      "weather": "heavy rain"
+    },
+    "prediction_error": 18
+  }
+}

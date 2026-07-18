@@ -18,6 +18,8 @@ pnpm dev
 
 The dashboard runs at `http://localhost:3000`. The persistent worker runs as a separate process and defaults to safe demo mode when external credentials are absent.
 
+For a live database and complete scenario run, follow [`docs/SETUP.md`](docs/SETUP.md) and [`docs/DEMO.md`](docs/DEMO.md). The full variable inventory is in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md), and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) diagrams the trust and data boundaries.
+
 ## Workspace
 
 - `apps/web` — frontend-only Next.js dashboard
@@ -114,4 +116,20 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 
 Set that output as `DEMO_SECRET`, set `CONTROL_SERVER_ENABLED=true`, restrict `CONTROL_ALLOWED_ORIGIN` to the dashboard origin, and set the browser-safe `NEXT_PUBLIC_AGENT_CONTROL_URL`. Then start the worker and web app and open `/security`. The secret stays only in component memory and is sent as a bearer token; it is never stored in browser storage.
 
-The protected controls create four deterministic flows without database editing: benign traffic, prompt injection, an exfiltration-policy finding, and a critical alert awaiting approval. Operator approval uses a guarded transaction that records identity, time, and an agent timeline event.
+The protected controls create six deterministic flows without database editing: benign traffic, cross-feed escalation, recursive memory, prompt injection, an exfiltration-policy finding, and a critical alert awaiting approval. Scenario writes are nonce-idempotent, and operator approval uses a guarded transaction that records identity, time, and an agent timeline event.
+
+Run all six controls and approve the critical alert from one validated script:
+
+```bash
+pnpm demo:scenarios
+```
+
+## Production artifacts
+
+`pnpm build` emits a bundled Node.js worker at `apps/agent/dist/index.js` and a standalone-capable Next.js build. `docker-compose.yml` builds both images; the worker is behind the explicit `live` profile because Docker alone does not satisfy the OpenShell containment boundary.
+
+```bash
+docker compose build
+docker compose up web
+docker compose --profile live up agent web
+```

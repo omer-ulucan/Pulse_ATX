@@ -1,0 +1,33 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      NEXT_PUBLIC_AGENT_CONTROL_URL: ${NEXT_PUBLIC_AGENT_CONTROL_URL:-http://127.0.0.1:8787}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://host.docker.internal:54321}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  agent:
+    profiles: ["live"]
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file:
+      - .env
+    environment:
+      CONTROL_SERVER_HOST: 0.0.0.0
+      DEMO_MODE: "false"
+      EMBEDDING_BASE_URL: ${CONTAINER_EMBEDDING_BASE_URL:-http://host.docker.internal:8001/v1}
+      SUPABASE_URL: ${CONTAINER_SUPABASE_URL:-http://host.docker.internal:54321}
+      VLLM_BASE_URL: ${CONTAINER_VLLM_BASE_URL:-http://host.docker.internal:8000/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8787:8787"
+    restart: unless-stopped

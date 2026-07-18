@@ -20,9 +20,16 @@ export class MemoryDemoControlRepository implements DemoControlRepository {
     this.scenarios.push({ nonce, scenario });
     return Promise.resolve({
       alert_id: scenario === "critical_approval" ? randomUUID() : null,
-      incident_id: scenario === "critical_approval" ? randomUUID() : null,
+      incident_id:
+        scenario === "critical_approval" ||
+        scenario === "cross_feed" ||
+        scenario === "recursive_memory"
+          ? randomUUID()
+          : null,
       raw_event_id:
-        scenario === "benign" || scenario === "prompt_injection"
+        scenario === "benign" ||
+        scenario === "cross_feed" ||
+        scenario === "prompt_injection"
           ? randomUUID()
           : null,
       scenario,

@@ -15,6 +15,15 @@ const ApprovalBodySchema = z.object({
   operator: z.string().trim().min(2).max(120),
 });
 
+class ControlRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export interface ControlServerOptions {
   allowedOrigin?: string | undefined;
   host: string;
@@ -41,11 +50,16 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   for await (const chunk of request as AsyncIterable<Uint8Array>) {
     const buffer = Buffer.from(chunk);
     size += buffer.length;
-    if (size > 16_384) throw new Error("Request body exceeds 16 KiB");
+    if (size > 16_384)
+      throw new ControlRequestError(413, "Request body exceeds 16 KiB");
     chunks.push(buffer);
   }
   if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  } catch {
+    throw new ControlRequestError(400, "Request body must be valid JSON");
+  }
 }
 
 export class DemoControlServer {
@@ -61,15 +75,37 @@ export class DemoControlServer {
     if (this.server) throw new Error("Control server is already running");
     const server = createServer((request, response) => {
       void this.handle(request, response).catch((error: unknown) => {
+        const validationError = error instanceof z.ZodError;
+        const status =
+          error instanceof ControlRequestError
+            ? error.status
+            : validationError
+              ? 400
+              : 500;
         this.logger("control request failed", {
           error: error instanceof Error ? error.message : "Unknown error",
+          status,
         });
-        if (!response.headersSent) {
-          response.writeHead(500, { "Content-Type": "application/json" });
+        if (!response.headersSent && !response.writableEnded) {
+          response.writeHead(status, { "Content-Type": "application/json" });
         }
-        response.end(JSON.stringify({ error: "Control request failed" }));
+        if (!response.writableEnded) {
+          response.end(
+            JSON.stringify({
+              error:
+                status === 500
+                  ? "Control request failed"
+                  : error instanceof Error
+                    ? error.message
+                    : "Invalid request",
+            }),
+          );
+        }
       });
     });
+    server.headersTimeout = 5_000;
+    server.keepAliveTimeout = 5_000;
+    server.requestTimeout = 10_000;
     this.server = server;
     return new Promise((resolve, reject) => {
       server.once("error", reject);

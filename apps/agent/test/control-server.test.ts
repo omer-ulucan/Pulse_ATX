@@ -53,6 +53,8 @@ describe("protected agent controls", () => {
     const { address, repository } = await startServer();
     for (const scenario of [
       "benign",
+      "cross_feed",
+      "recursive_memory",
       "prompt_injection",
       "exfiltration",
       "critical_approval",
@@ -68,6 +70,8 @@ describe("protected agent controls", () => {
     }
     expect(repository.scenarios.map((item) => item.scenario)).toEqual([
       "benign",
+      "cross_feed",
+      "recursive_memory",
       "prompt_injection",
       "exfiltration",
       "critical_approval",
@@ -90,5 +94,31 @@ describe("protected agent controls", () => {
     expect(repository.approvals).toEqual([
       { alertId, operator: "Austin EOC operator" },
     ]);
+  });
+
+  it("returns bounded client errors for malformed approval requests", async () => {
+    const { address } = await startServer();
+    const alertId = randomUUID();
+    const malformed = await fetch(`${address}/v1/alerts/${alertId}/approve`, {
+      body: "{",
+      headers: {
+        Authorization: "Bearer test-control-secret-with-sufficient-entropy",
+        "Content-Type": "application/json",
+        Origin: "http://localhost:3000",
+      },
+      method: "POST",
+    });
+    expect(malformed.status).toBe(400);
+
+    const oversized = await fetch(`${address}/v1/alerts/${alertId}/approve`, {
+      body: JSON.stringify({ operator: "x".repeat(17_000) }),
+      headers: {
+        Authorization: "Bearer test-control-secret-with-sufficient-entropy",
+        "Content-Type": "application/json",
+        Origin: "http://localhost:3000",
+      },
+      method: "POST",
+    });
+    expect(oversized.status).toBe(413);
   });
 });

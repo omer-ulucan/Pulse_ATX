@@ -82,6 +82,8 @@ export type IncidentLesson = z.infer<typeof IncidentLessonSchema>;
 
 export const DemoScenarioSchema = z.enum([
   "benign",
+  "cross_feed",
+  "recursive_memory",
   "prompt_injection",
   "exfiltration",
   "critical_approval",
@@ -142,10 +144,14 @@ const AgentEnvironmentSchema = z
     WEATHER_POLL_INTERVAL_MS: integerString(60_000, 30_000, 600_000),
   })
   .superRefine((value, context) => {
-    if (value.CONTROL_SERVER_ENABLED && !value.DEMO_SECRET) {
+    if (
+      value.CONTROL_SERVER_ENABLED &&
+      (!value.DEMO_SECRET || value.DEMO_SECRET.length < 32)
+    ) {
       context.addIssue({
         code: "custom",
-        message: "DEMO_SECRET is required when CONTROL_SERVER_ENABLED=true",
+        message:
+          "DEMO_SECRET must contain at least 32 characters when CONTROL_SERVER_ENABLED=true",
         path: ["DEMO_SECRET"],
       });
     }
