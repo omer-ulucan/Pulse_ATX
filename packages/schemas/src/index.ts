@@ -1,5 +1,31 @@
 import { z } from "zod";
 
+export const EventSourceSchema = z.enum([
+  "austin_traffic",
+  "capmetro",
+  "noaa_weather",
+  "austin_fire",
+  "demo",
+]);
+
+export const NormalizedEventSchema = z.object({
+  eventType: z.string().min(1),
+  externalId: z.string().min(1),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  latitude: z.number().min(-90).max(90).nullable(),
+  locationName: z.string().min(1).nullable(),
+  longitude: z.number().min(-180).max(180).nullable(),
+  payload: z.record(z.string(), z.unknown()),
+  source: EventSourceSchema,
+  sourceCreatedAt: z.iso.datetime().nullable(),
+  sourceUpdatedAt: z.iso.datetime().nullable(),
+  status: z.string().min(1),
+  summary: z.string().min(1),
+});
+
+export type EventSource = z.infer<typeof EventSourceSchema>;
+export type NormalizedEvent = z.infer<typeof NormalizedEventSchema>;
+
 const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.url().optional(),
@@ -70,3 +96,5 @@ export const PublicEnvironmentSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalString,
   NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
 });
+
+export type PublicEnvironment = z.infer<typeof PublicEnvironmentSchema>;

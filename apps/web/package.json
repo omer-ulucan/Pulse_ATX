@@ -11,6 +11,7 @@
   "dependencies": {
     "@pulse-atx/schemas": "workspace:*",
     "@pulse-atx/shared": "workspace:*",
+    "@supabase/supabase-js": "2.80.0",
     "@tailwindcss/postcss": "4.1.17",
     "next": "16.0.1",
     "react": "19.2.0",

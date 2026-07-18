@@ -1,0 +1,12 @@
+[
+  {
+    "traffic_report_id": "AUS-2026-0718-001",
+    "issue_reported": "COLLISION WITH INJURY",
+    "traffic_report_status": "ACTIVE",
+    "address": "N LAMAR BLVD / W 24TH ST",
+    "latitude": "30.2884",
+    "longitude": "-97.7417",
+    "published_date": "2026-07-18T05:30:00.000Z",
+    "updated_at": "2026-07-18T05:32:00.000Z"
+  }
+]

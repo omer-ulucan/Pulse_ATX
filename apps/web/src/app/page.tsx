@@ -1,4 +1,5 @@
 import { APP_NAME } from "@pulse-atx/shared";
+import Link from "next/link";
 
 const capabilities = [
   "Incremental public-feed monitoring",
@@ -25,6 +26,12 @@ export default function HomePage() {
           operational impact, learns from outcomes, and publishes trustworthy
           updates within seconds.
         </p>
+        <Link
+          className="inline-flex rounded-full bg-emerald-300 px-5 py-3 font-semibold text-emerald-950 transition hover:bg-emerald-200"
+          href="/live"
+        >
+          View live events
+        </Link>
       </section>
       <section className="grid gap-4 sm:grid-cols-2">
         {capabilities.map((capability) => (

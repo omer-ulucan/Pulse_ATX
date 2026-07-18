@@ -30,3 +30,14 @@ The dashboard runs at `http://localhost:3000`. The persistent worker runs as a s
 - `policies` — NemoClaw and OpenShell runtime policies
 
 Copy `.env.example` to `.env`. Keep `SUPABASE_SERVICE_ROLE_KEY`, model keys, embedding keys, and `HIDDENLAYER_API_KEY` server-side only.
+
+## Local Supabase
+
+With Docker Desktop running, apply the checked-in schema and seed through the pinned CLI version:
+
+```bash
+pnpm dlx supabase@2.58.5 start
+pnpm dlx supabase@2.58.5 db reset
+```
+
+The worker uses `public.ingest_raw_event` so the raw event revision and its processing job are created atomically. Repeated fingerprints return the existing revision without creating another job.

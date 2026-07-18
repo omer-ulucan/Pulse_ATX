@@ -1,6 +1,6 @@
 # Current Phase
 
-Phase 0 — Repository Foundation
+Phase 1 — Supabase Schema and Live Event Ingestion
 
 # Status
 
@@ -8,30 +8,32 @@ complete
 
 # Completed Work
 
-- Created the pnpm monorepo foundation.
-- Added runnable Next.js and TypeScript agent applications.
-- Added strict TypeScript, ESLint, Prettier, environment validation, and shared packages.
-- Added pinned dependencies, workspace scripts, safe demo defaults, and setup documentation.
+- Phase 0 committed as `phase 0: repository foundation`.
+- Added the Supabase core schema, pgvector, RLS, Realtime publication, and atomic ingestion RPC.
+- Added Austin traffic normalization, fingerprints, repositories, source health, fixtures, and tests.
+- Added a minimal live events page backed by the Supabase REST API.
+- Added documented generated-compatible database types and local Supabase commands.
 
 # Verification
 
-- `pnpm install` — passed; 7 workspace projects installed.
+- `pnpm install` — passed after adding Supabase and Vitest dependencies.
 - `pnpm format:check` — passed.
 - `pnpm lint` — passed with zero warnings.
 - `pnpm typecheck` — passed for all applications and packages.
-- `pnpm test` — passed; no Phase 0 test suites are required.
-- `pnpm build` — passed for the worker and Next.js production app.
-- `pnpm --filter @pulse-atx/agent start -- --once` — passed; worker emitted a heartbeat and shut down gracefully.
-- Next.js production server smoke test — returned HTTP 200 and rendered PulseATX.
+- `pnpm test` — passed: 2 files, 4 tests covering fixtures, deduplication, revision jobs, source health, and migration constraints.
+- `pnpm build` — passed for the worker and Next.js app.
+- Built `/live` smoke test — returned HTTP 200 and rendered the live events view.
+- Local migration apply — not run because the Supabase CLI is absent and the installed Docker Desktop engine is not running; SQL behavior is covered by repository and migration-contract tests.
 
 # Missing Configuration
 
-- Supabase, vLLM, embedding, HiddenLayer, and public feed credentials remain unset; Phase 0 runs in safe demo mode.
+- Supabase URL and keys are unavailable.
+- Docker Desktop must be started and `pnpm dlx supabase@2.58.5 db reset` run to apply the migration locally.
 
 # Known Issues
 
-- None.
+- The checked-in database types are generated-compatible and documented, but cannot be regenerated until a Supabase stack is available.
 
 # Next Phase
 
-- Phase 1 — Supabase Schema and Live Event Ingestion
+- Phase 2 — Persistent Heartbeat and Realtime Dashboard
