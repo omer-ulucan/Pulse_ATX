@@ -96,6 +96,41 @@ describe("protected agent controls", () => {
     ]);
   });
 
+  it("records approve and reject decisions for protected mission tools", async () => {
+    const { address, repository } = await startServer();
+    const executionIds = [randomUUID(), randomUUID()];
+    for (const [index, executionId] of executionIds.entries()) {
+      const response = await fetch(
+        `${address}/v1/missions/tools/${executionId}/decision`,
+        {
+          body: JSON.stringify({
+            approved: index === 0,
+            operator: "Austin EOC operator",
+          }),
+          headers: {
+            Authorization: "Bearer test-control-secret-with-sufficient-entropy",
+            "Content-Type": "application/json",
+            Origin: "http://localhost:3000",
+          },
+          method: "POST",
+        },
+      );
+      expect(response.status).toBe(200);
+    }
+    expect(repository.missionDecisions).toEqual([
+      {
+        approved: true,
+        executionId: executionIds[0],
+        operator: "Austin EOC operator",
+      },
+      {
+        approved: false,
+        executionId: executionIds[1],
+        operator: "Austin EOC operator",
+      },
+    ]);
+  });
+
   it("returns bounded client errors for malformed approval requests", async () => {
     const { address } = await startServer();
     const alertId = randomUUID();

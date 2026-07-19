@@ -14,6 +14,11 @@ export type DemoResult = z.infer<typeof DemoResultSchema>;
 
 export interface DemoControlRepository {
   approveAlert(alertId: string, operator: string): Promise<string>;
+  decideMissionTool(
+    executionId: string,
+    operator: string,
+    approved: boolean,
+  ): Promise<string>;
   runScenario(scenario: DemoScenario, nonce: string): Promise<DemoResult>;
 }
 
@@ -28,6 +33,21 @@ export class SupabaseDemoControlRepository implements DemoControlRepository {
     if (response.error)
       throw new Error(`Alert approval failed: ${response.error.message}`);
     return z.uuid().parse(response.data);
+  }
+
+  async decideMissionTool(
+    executionId: string,
+    operator: string,
+    approved: boolean,
+  ): Promise<string> {
+    const response = (await this.client.rpc("decide_agent_tool_approval", {
+      p_approved: approved,
+      p_execution_id: executionId,
+      p_operator: operator,
+    })) as { data: { id?: unknown } | null; error: { message: string } | null };
+    if (response.error)
+      throw new Error(`Mission approval failed: ${response.error.message}`);
+    return z.uuid().parse(response.data?.id);
   }
 
   async runScenario(

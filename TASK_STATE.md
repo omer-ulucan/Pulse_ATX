@@ -1,6 +1,6 @@
 # Current Phase
 
-Autonomous Incident Commander — agentic 4: approval and re-observation loop
+Autonomous Incident Commander — agentic 5: incident commander dashboard
 
 # Status
 
@@ -48,6 +48,14 @@ complete
 - Added deterministic escalation and de-escalation replacement plans, including severity changes, alert revision, explicit approval request, simulated publication, cancellation of stale actions, and another bounded recheck.
 - Wired the Autonomous Incident Commander into the persistent worker after live ingestion/analysis and before recursive memory consolidation; mission batch telemetry is now included in worker health metadata.
 - Extended the existing recursive memory pipeline to embed and store structured mission lessons with mission metadata and retrieval-compatible incident conditions.
+- Added a prominent full-width Incident Commander instrument beneath the selected map incident without changing the locked charcoal-navy operations design or introducing a competing visual motif.
+- Added mission header readouts for goal, state, priority, plan version, success criteria, and a live next-wake countdown.
+- Added the live plan, current correlated observation, deterministic change register, structured counterfactual audit, operator approval card, immutable plan-version register, and mission timeline history.
+- Added designed empty instruments for incidents without qualifying missions, first observations, unchanged wake cycles, absent audits, and empty mission history.
+- Added responsive single-column layouts, keyboard-visible form/button focus through the existing global rules, mono treatment for machine output, and no additional motion beyond the existing reduced-motion-safe heartbeat.
+- Extended server-side dashboard snapshots and Supabase Realtime handling for missions, mission steps, observations, tool executions, and mission-scoped timeline metadata.
+- Added an authenticated mission-tool approval/rejection control endpoint; the browser accepts an operator-entered secret without exposing service-role credentials or bundling the control secret.
+- Added Zod tests for all four mission Realtime payload shapes and protected control tests for both approve and reject decisions.
 
 # Verification Commands and Results
 
@@ -83,6 +91,10 @@ complete
 - Agentic approval/re-observation verification: `pnpm --filter @pulse-atx/agent test -- mission-lifecycle.test.ts mission-engine.test.ts commander-tools.test.ts migration-contract.test.ts heartbeat.test.ts worker-flow.e2e.test.ts` passed 6 files and 32 tests.
 - Agentic 4 `pnpm typecheck` and `pnpm lint` — passed across all workspace applications and packages with zero warnings.
 - `pnpm dlx supabase@2.58.5 db reset` — could not run because the Docker Desktop Linux engine pipe is unavailable; migration contracts cover the runtime SQL until Docker is restarted.
+- Agentic dashboard verification: `pnpm --filter @pulse-atx/agent test -- control-server.test.ts dashboard-realtime.test.ts` passed 2 files and 8 tests.
+- Agentic 5 `pnpm format:check`, `pnpm typecheck`, and `pnpm lint` — passed across the workspace with zero warnings.
+- Agentic 5 `pnpm build` — passed for the bundled persistent worker and the Next.js production dashboard; all application routes compiled successfully.
+- Frontend palette audit — passed with only the eight locked hexadecimal colors and no green/mint replacement accent.
 
 # Missing Configuration
 
@@ -101,4 +113,4 @@ complete
 
 # Next Phase
 
-Autonomous Incident Commander — agentic 5: incident commander dashboard.
+Autonomous Incident Commander — agentic 6: deterministic demo and tests.

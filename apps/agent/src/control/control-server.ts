@@ -15,6 +15,10 @@ const ApprovalBodySchema = z.object({
   operator: z.string().trim().min(2).max(120),
 });
 
+const MissionDecisionBodySchema = ApprovalBodySchema.extend({
+  approved: z.boolean(),
+});
+
 class ControlRequestError extends Error {
   constructor(
     readonly status: number,
@@ -204,6 +208,31 @@ export class DemoControlServer {
       this.logger("alert approved", { alertId, operator: body.operator });
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ alertId, status: "approved" }));
+      return;
+    }
+
+    const missionDecisionMatch =
+      /^\/v1\/missions\/tools\/([^/]+)\/decision$/.exec(url.pathname);
+    if (request.method === "POST" && missionDecisionMatch) {
+      const executionId = z.uuid().parse(missionDecisionMatch[1]);
+      const body = MissionDecisionBodySchema.parse(await readJsonBody(request));
+      await this.repository.decideMissionTool(
+        executionId,
+        body.operator,
+        body.approved,
+      );
+      this.logger("mission tool decision recorded", {
+        approved: body.approved,
+        executionId,
+        operator: body.operator,
+      });
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          approvalStatus: body.approved ? "approved" : "rejected",
+          executionId,
+        }),
+      );
       return;
     }
 

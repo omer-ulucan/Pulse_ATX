@@ -7,9 +7,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   DashboardHealthSchema,
   DashboardIncidentSchema,
+  DashboardMissionSchema,
+  DashboardMissionStepSchema,
+  DashboardObservationSchema,
   DashboardRawEventSchema,
   DashboardSecurityFindingSchema,
   DashboardTimelineSchema,
+  DashboardToolExecutionSchema,
   type DashboardHealth,
   type DashboardIncident,
   type DashboardSecurityFinding,
@@ -17,6 +21,7 @@ import {
   type DashboardTimeline,
 } from "../lib/dashboard-data";
 import { HeartbeatWaveform } from "./heartbeat-waveform";
+import { IncidentCommanderPanel } from "./incident-commander-panel";
 import { BrandLockup, OperationsNav, SystemNotice } from "./operations-shell";
 import { StatStrip } from "./stat-strip";
 
@@ -79,6 +84,10 @@ export function RealtimeDashboard({
   const [rawEvents, setRawEvents] = useState(snapshot.rawEvents);
   const [incidents, setIncidents] = useState(snapshot.incidents);
   const [timeline, setTimeline] = useState(snapshot.timeline);
+  const [missions, setMissions] = useState(snapshot.missions);
+  const [missionSteps, setMissionSteps] = useState(snapshot.missionSteps);
+  const [observations, setObservations] = useState(snapshot.observations);
+  const [toolExecutions, setToolExecutions] = useState(snapshot.toolExecutions);
   const [health, setHealth] = useState<DashboardHealth | null>(snapshot.health);
   const [securityFindings, setSecurityFindings] = useState(
     snapshot.securityFindings,
@@ -110,6 +119,62 @@ export function RealtimeDashboard({
               setRawEvents((items) =>
                 upsertById(items, parsed.data).slice(0, 50),
               );
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "agent_missions" },
+          (payload) => {
+            const parsed = DashboardMissionSchema.safeParse(payload.new);
+            if (parsed.success) {
+              setMissions((items) =>
+                upsertById(items, parsed.data).slice(0, 50),
+              );
+              setActivityVersion((value) => value + 1);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "agent_mission_steps" },
+          (payload) => {
+            const parsed = DashboardMissionStepSchema.safeParse(payload.new);
+            if (parsed.success) {
+              setMissionSteps((items) =>
+                upsertById(items, parsed.data).slice(0, 200),
+              );
+              setActivityVersion((value) => value + 1);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "agent_observations" },
+          (payload) => {
+            const parsed = DashboardObservationSchema.safeParse(payload.new);
+            if (parsed.success) {
+              setObservations((items) =>
+                upsertById(items, parsed.data).slice(0, 100),
+              );
+              setActivityVersion((value) => value + 1);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "agent_tool_executions",
+          },
+          (payload) => {
+            const parsed = DashboardToolExecutionSchema.safeParse(payload.new);
+            if (parsed.success) {
+              setToolExecutions((items) =>
+                upsertById(items, parsed.data).slice(0, 100),
+              );
+              setActivityVersion((value) => value + 1);
+            }
           },
         )
         .on(
@@ -227,6 +292,15 @@ export function RealtimeDashboard({
       incidents[0] ??
       null,
     [incidents, selectedIncidentId],
+  );
+  const selectedMission = useMemo(
+    () =>
+      missions
+        .filter((mission) => mission.incident_id === selectedIncident?.id)
+        .sort((left, right) =>
+          right.started_at.localeCompare(left.started_at),
+        )[0] ?? null,
+    [missions, selectedIncident?.id],
   );
   const sourceCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -365,6 +439,16 @@ export function RealtimeDashboard({
           </div>
         </aside>
       </section>
+
+      <IncidentCommanderPanel
+        controlUrl={snapshot.config?.controlUrl ?? null}
+        executions={toolExecutions}
+        incident={selectedIncident}
+        mission={selectedMission}
+        observations={observations}
+        steps={missionSteps}
+        timeline={timeline}
+      />
 
       <section className="operations-lower-grid">
         <DispatchLog

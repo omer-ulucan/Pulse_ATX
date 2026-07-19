@@ -9,11 +9,25 @@ import type {
 
 export class MemoryDemoControlRepository implements DemoControlRepository {
   readonly approvals: { alertId: string; operator: string }[] = [];
+  readonly missionDecisions: {
+    approved: boolean;
+    executionId: string;
+    operator: string;
+  }[] = [];
   readonly scenarios: { nonce: string; scenario: DemoScenario }[] = [];
 
   approveAlert(alertId: string, operator: string): Promise<string> {
     this.approvals.push({ alertId, operator });
     return Promise.resolve(alertId);
+  }
+
+  decideMissionTool(
+    executionId: string,
+    operator: string,
+    approved: boolean,
+  ): Promise<string> {
+    this.missionDecisions.push({ approved, executionId, operator });
+    return Promise.resolve(executionId);
   }
 
   runScenario(scenario: DemoScenario, nonce: string): Promise<DemoResult> {
