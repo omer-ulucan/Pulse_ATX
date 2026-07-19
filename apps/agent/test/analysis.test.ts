@@ -55,6 +55,7 @@ class MockChatModel implements ChatModel {
 
 describe("Nemotron analysis", () => {
   it("sends an OpenAI-compatible vLLM request", async () => {
+    let authorizationHeader = "";
     let requestUrl = "";
     let requestBody: unknown;
     const fetcher: typeof fetch = (input, init) => {
@@ -66,6 +67,8 @@ describe("Nemotron analysis", () => {
             : input;
       if (typeof init?.body !== "string")
         throw new Error("Expected a JSON request body");
+      authorizationHeader =
+        new Headers(init.headers).get("authorization") ?? "";
       requestBody = JSON.parse(init.body) as unknown;
       return Promise.resolve(
         new Response(
@@ -77,7 +80,11 @@ describe("Nemotron analysis", () => {
       );
     };
     const client = new VllmClient(
-      { baseUrl: "http://vllm.test/v1", modelName: "nemotron-test" },
+      {
+        apiKey: "test-vllm-token",
+        baseUrl: "http://vllm.test/v1",
+        modelName: "nemotron-test",
+      },
       fetcher,
     );
 
@@ -85,6 +92,7 @@ describe("Nemotron analysis", () => {
       "lane_blocking_collision",
     );
     expect(requestUrl).toBe("http://vllm.test/v1/chat/completions");
+    expect(authorizationHeader).toBe("Bearer test-vllm-token");
     expect(requestBody).toMatchObject({
       model: "nemotron-test",
       response_format: { type: "json_object" },
@@ -93,6 +101,88 @@ describe("Nemotron analysis", () => {
       requests: 1,
       serverStatus: "available",
     });
+  });
+
+  it("returns only final content when vLLM separates the reasoning trace", async () => {
+    const fetcher: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify(validDecision),
+                  reasoning_content:
+                    "I should classify the blocked lanes before answering.",
+                },
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        ),
+      );
+    const client = new VllmClient(
+      { baseUrl: "http://vllm.test/v1", modelName: "nemotron-test" },
+      fetcher,
+    );
+
+    const result = await client.complete("system", "user");
+
+    expect(result).toBe(JSON.stringify(validDecision));
+    expect(result).not.toContain("blocked lanes before answering");
+  });
+
+  it("removes tagged reasoning emitted before the final JSON", async () => {
+    const fetcher: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: `<think>Private reasoning trace</think>${JSON.stringify(validDecision)}`,
+                },
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        ),
+      );
+    const client = new VllmClient(
+      { baseUrl: "http://vllm.test/v1", modelName: "nemotron-test" },
+      fetcher,
+    );
+
+    await expect(client.complete("system", "user")).resolves.toBe(
+      JSON.stringify(validDecision),
+    );
+  });
+
+  it("never substitutes a reasoning trace for a missing final answer", async () => {
+    const fetcher: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: null,
+                  reasoning_content: "Private reasoning without a final answer",
+                },
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        ),
+      );
+    const client = new VllmClient(
+      { baseUrl: "http://vllm.test/v1", modelName: "nemotron-test" },
+      fetcher,
+    );
+
+    await expect(client.complete("system", "user")).rejects.toThrow(
+      "vLLM returned no final answer content",
+    );
   });
 
   it("repairs invalid JSON once and persists the validated decision", async () => {

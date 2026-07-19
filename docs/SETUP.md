@@ -1,5 +1,7 @@
 # Reproducible Setup
 
+For the detailed Windows-first setup, credential acquisition, complete `.env` mapping, startup modes, and troubleshooting, see [`START_HERE.md`](../START_HERE.md).
+
 ## Prerequisites
 
 - Node.js 22 or newer

@@ -4,7 +4,7 @@ Phase 9 — Final Hardening
 
 # Status
 
-complete
+complete — post-completion hosted Nemotron integration verified
 
 # Completed Work
 
@@ -17,6 +17,15 @@ complete
 - Added a directly runnable esbuild worker artifact, standalone-capable Next.js output, Docker images, Compose configuration, and runtime image smoke tests.
 - Regenerated complete Supabase TypeScript types from the verified local schema.
 - Added setup, architecture, environment, and six-scenario demo documentation and finalized the README.
+- Configured the provided self-hosted `nemotron-3-nano` vLLM endpoint in the ignored local `.env`; the bearer token is not tracked or documented.
+- Replaced the worker's hand-written vLLM HTTP request with the official OpenAI SDK while preserving timeouts, bounded retries, inference metrics, and Zod response validation.
+- Connected the shared SDK client to the existing incident-analysis and recursive lesson-extraction paths.
+- Discarded separate `reasoning_content` and tagged `<think>`/`<analysis>` traces before downstream security scanning and structured-output validation; reasoning-only responses fail closed instead of being exposed as final content.
+- Rebuilt the entire frontend around the locked Austin operations token system: charcoal-navy surfaces, amber live signaling, cyan data, severity-only red, IBM Plex Sans Condensed headings, IBM Plex Sans authored copy, and IBM Plex Mono machine output.
+- Rebuilt the command center first with the persistent heartbeat instrument, one-row status strip, CARTO Dark Matter Leaflet map, four marker states, focused incident rail, dispatch-style agent timeline, and dense worker/source instruments.
+- Rebuilt the landing page, MAE-centered learning view, detect-to-enforce security split, raw event ledger, navigation, notices, empty instruments, and all shared responsive components.
+- Added visible keyboard focus states, single-column breakpoints, ambient-only heartbeat/status motion, and static reduced-motion fallbacks.
+- Removed the unused Tailwind/PostCSS styling pipeline and installed local IBM Plex font packages so production rendering does not depend on a remote font request.
 
 # Verification Commands and Results
 
@@ -36,11 +45,20 @@ complete
 - `docker compose build web agent` — passed for both production images.
 - Worker image smoke — passed with one boot/heartbeat/shutdown cycle.
 - Web image smoke — `/dashboard`, `/learning`, and `/security` each returned HTTP 200.
+- `pnpm install` — passed and added the pinned OpenAI SDK dependency to the lockfile.
+- `pnpm --filter @pulse-atx/agent test -- analysis.test.ts` — passed: 1 test file, 6 tests covering authenticated SDK requests, separated/tagged reasoning, missing final content, repair, and fallback behavior.
+- Live authenticated OpenAI SDK smoke test — passed: the configured endpoint exposed `nemotron-3-nano` and returned validated `{ "status": "ok" }` final JSON with `finish_reason=stop`.
+- `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` — passed after the hosted-model integration; 10 test files and 45 tests passed.
+- `pnpm build` — passed for the bundled agent worker and Next.js production application; the in-sandbox esbuild attempt was blocked by filesystem traversal restrictions, and the approved production build outside that sandbox succeeded.
+- Frontend design audit — passed: the web source contains only the eight locked hexadecimal colors and no emerald/green/mint, Inter, terracotta, lorem ipsum, or legacy plain empty-state copy.
+- Production route smoke — `/`, `/dashboard`, `/learning`, `/security`, and `/live` each returned HTTP 200 with a rendered H1.
+- Final `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and approved `pnpm build` — passed after removing the legacy styling dependencies; 10 test files and 45 tests passed.
 
 # Missing Configuration
 
 - A live Supabase deployment URL, anonymous key, and service-role key are not configured; local Supabase was used for full migration and RPC verification.
-- vLLM/Nemotron and the 384-dimensional embedding service are not available on this host; mocked OpenAI-compatible contract tests cover both integrations.
+- The self-hosted vLLM/Nemotron endpoint is configured and live-verified locally. Its bearer token must be supplied independently on every deployment because `.env` is intentionally ignored.
+- A live 384-dimensional embedding service is not configured; mocked OpenAI-compatible contract tests cover that integration.
 - A HiddenLayer API key is not available; mocked interaction tests cover pre/post-model blocking behavior.
 - NemoClaw and OpenShell CLIs are not installed; the checked-in policies and policy evaluator are verified, but the live sandbox denial command requires those tools.
 

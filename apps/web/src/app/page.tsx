@@ -1,48 +1,70 @@
-import { APP_NAME } from "@pulse-atx/shared";
 import Link from "next/link";
 
+import { HeartbeatWaveform } from "../components/heartbeat-waveform";
+import { BrandLockup } from "../components/operations-shell";
+
 const capabilities = [
-  "Incremental public-feed monitoring",
-  "Persistent heartbeat outside Vercel",
-  "Validated Nemotron decisions through vLLM",
-  "Realtime incidents, learning, and security",
-];
+  ["01", "Watches Austin traffic, transit, and weather without stopping."],
+  ["02", "Links disruptions that share a place and time."],
+  ["03", "Uses Nemotron to classify impact and estimate duration."],
+  ["04", "Learns from resolved incidents before the next decision."],
+  ["05", "Blocks unsafe feed instructions before they reach the model."],
+] as const;
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center gap-12 px-6 py-16">
-      <div className="w-fit rounded-full border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-sm text-emerald-200">
-        Austin live intelligence network
-      </div>
-      <section className="max-w-4xl space-y-5">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">
-          {APP_NAME}
-        </p>
-        <h1 className="text-5xl font-semibold tracking-tight sm:text-7xl">
-          Know what Austin needs next.
-        </h1>
-        <p className="max-w-2xl text-lg leading-8 text-slate-300">
-          A persistent city agent that detects new signals, correlates
-          operational impact, learns from outcomes, and publishes trustworthy
-          updates within seconds.
-        </p>
-        <Link
-          className="inline-flex rounded-full bg-emerald-300 px-5 py-3 font-semibold text-emerald-950 transition hover:bg-emerald-200"
-          href="/dashboard"
-        >
-          Open command center
-        </Link>
+    <main className="landing-shell">
+      <header className="landing-header">
+        <BrandLockup />
+        <div className="landing-header__station">
+          <span className="status-dot" aria-hidden="true" />
+          AUSTIN OPERATIONS / ALWAYS ON
+        </div>
+      </header>
+
+      <section className="landing-hero">
+        <div className="landing-hero__copy">
+          <p className="eyebrow">CITY SIGNALS / ONE OPERATING PICTURE</p>
+          <h1>Austin does not wait for a dashboard refresh.</h1>
+          <p className="landing-deck">
+            PulseATX stays on duty, turns public city feeds into verified
+            incidents, and keeps operators current as conditions change.
+          </p>
+          <Link className="primary-action" href="/dashboard">
+            Open command center
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <div className="landing-hero__instrument">
+          <HeartbeatWaveform
+            eventCount={3}
+            status="monitoring"
+            variant="hero"
+          />
+          <div className="landing-coordinates">
+            <span>30.2672° N</span>
+            <span>97.7431° W</span>
+            <span>TRAVIS COUNTY</span>
+          </div>
+        </div>
       </section>
-      <section className="grid gap-4 sm:grid-cols-2">
-        {capabilities.map((capability) => (
-          <article
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-slate-200"
-            key={capability}
-          >
-            <span className="mr-3 text-emerald-300">●</span>
-            {capability}
-          </article>
-        ))}
+
+      <section
+        className="capability-ledger"
+        aria-labelledby="capabilities-title"
+      >
+        <div className="capability-ledger__intro">
+          <p className="eyebrow">ON EVERY HEARTBEAT</p>
+          <h2 id="capabilities-title">What the system does</h2>
+        </div>
+        <ol>
+          {capabilities.map(([number, capability]) => (
+            <li key={number}>
+              <span>{number}</span>
+              <p>{capability}</p>
+            </li>
+          ))}
+        </ol>
       </section>
     </main>
   );

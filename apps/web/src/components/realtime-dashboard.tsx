@@ -1,7 +1,8 @@
 "use client";
 
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   DashboardHealthSchema,
@@ -15,8 +16,25 @@ import {
   type DashboardSnapshot,
   type DashboardTimeline,
 } from "../lib/dashboard-data";
+import { HeartbeatWaveform } from "./heartbeat-waveform";
+import { BrandLockup, OperationsNav, SystemNotice } from "./operations-shell";
+import { StatStrip } from "./stat-strip";
 
 type ConnectionState = "disconnected" | "live" | "reconnecting";
+
+const AustinLeafletMap = dynamic(
+  () =>
+    import("./austin-leaflet-map").then((module) => module.AustinLeafletMap),
+  {
+    loading: () => (
+      <div className="map-loading" role="status">
+        <span className="map-loading__reticle" />
+        Loading Austin basemap
+      </div>
+    ),
+    ssr: false,
+  },
+);
 
 function upsertById<T extends { id: string }>(items: T[], next: T): T[] {
   return [next, ...items.filter((item) => item.id !== next.id)];
@@ -35,20 +53,19 @@ function numericPayload(
   return null;
 }
 
-function markerPosition(latitude: number, longitude: number): CSSProperties {
-  const x = Math.max(3, Math.min(97, ((longitude + 98.05) / 0.7) * 100));
-  const y = Math.max(3, Math.min(97, (1 - (latitude - 30.05) / 0.55) * 100));
-  return { left: `${x}%`, top: `${y}%` };
+function formatTime(value: string): string {
+  return new Date(value).toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
-function severityMarker(severity: number | null): string {
-  if (severity === 5)
-    return "bg-red-400 shadow-[0_0_22px_rgba(248,113,113,.85)]";
-  if (severity === 4)
-    return "bg-orange-400 shadow-[0_0_22px_rgba(251,146,60,.8)]";
-  if (severity === 3)
-    return "bg-amber-300 shadow-[0_0_20px_rgba(252,211,77,.75)]";
-  return "bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,.7)]";
+function severityBand(severity: number | null): "high" | "low" | "moderate" {
+  if ((severity ?? 0) >= 4) return "high";
+  if (severity === 3) return "moderate";
+  return "low";
 }
 
 export function RealtimeDashboard({
@@ -100,10 +117,12 @@ export function RealtimeDashboard({
           { event: "*", schema: "public", table: "incidents" },
           (payload) => {
             const parsed = DashboardIncidentSchema.safeParse(payload.new);
-            if (parsed.success)
+            if (parsed.success) {
               setIncidents((items) =>
                 upsertById(items, parsed.data).slice(0, 50),
               );
+              setSelectedIncidentId((selected) => selected ?? parsed.data.id);
+            }
           },
         )
         .on(
@@ -132,11 +151,10 @@ export function RealtimeDashboard({
             const parsed = DashboardSecurityFindingSchema.safeParse(
               payload.new,
             );
-            if (parsed.success) {
+            if (parsed.success)
               setSecurityFindings((items) =>
                 upsertById(items, parsed.data).slice(0, 10),
               );
-            }
           },
         );
 
@@ -205,198 +223,335 @@ export function RealtimeDashboard({
   );
   const selectedIncident = useMemo(
     () =>
-      incidents.find((incident) => incident.id === selectedIncidentId) ?? null,
+      incidents.find((incident) => incident.id === selectedIncidentId) ??
+      incidents[0] ??
+      null,
     [incidents, selectedIncidentId],
   );
+  const sourceCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const event of rawEvents)
+      counts.set(event.source, (counts.get(event.source) ?? 0) + 1);
+    return [...counts.entries()].sort((left, right) => right[1] - left[1]);
+  }, [rawEvents]);
+  const criticalCount = incidents.filter(
+    (incident) => (incident.severity ?? 0) >= 4,
+  ).length;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Metric label="Agent" value={health?.status ?? "offline"} />
-          <Metric
-            label="Pending jobs"
-            value={String(health?.pending_jobs ?? 0)}
-          />
-          <Metric label="Realtime" value={connection} />
-        </div>
-        <div className="relative min-h-[34rem] overflow-hidden rounded-3xl border border-white/10 bg-[#0a1715]">
-          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(94,226,180,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(94,226,180,.18)_1px,transparent_1px)] [background-size:48px_48px]" />
-          <div className="absolute left-6 top-6 z-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">
-              Austin operations map
-            </p>
-            <p className="mt-2 text-sm text-slate-400">
-              {incidents.length} active · {analyzingSignals.length} analyzing
-            </p>
+    <main className="command-shell">
+      <header className="command-header">
+        <div className="command-header__identity">
+          <BrandLockup compact />
+          <div>
+            <span className="system-label">COMMAND CENTER / AUSTIN</span>
+            <h1 className="command-header__title">Austin operating picture</h1>
           </div>
-          {analyzingSignals.map((signal) => (
-            <div
-              className="group absolute z-20 -translate-x-1/2 -translate-y-1/2"
-              key={signal.id}
-              style={markerPosition(signal.latitude, signal.longitude)}
-            >
-              <span className="absolute -inset-3 animate-ping rounded-full bg-amber-300/30" />
-              <span className="relative block size-4 rounded-full border-2 border-amber-100 bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,.8)]" />
-              <span className="pointer-events-none absolute left-6 top-1/2 hidden w-52 -translate-y-1/2 rounded-xl border border-white/10 bg-slate-950/95 p-3 text-xs text-slate-200 group-hover:block">
-                {signal.title} · analyzing
-              </span>
-            </div>
-          ))}
-          {incidents
-            .filter(
-              (
-                incident,
-              ): incident is DashboardIncident & {
-                latitude: number;
-                longitude: number;
-              } => incident.latitude !== null && incident.longitude !== null,
-            )
-            .map((incident) => (
-              <button
-                aria-label={`Select ${incident.title}`}
-                className="group absolute z-20 -translate-x-1/2 -translate-y-1/2"
-                key={incident.id}
-                onClick={() => setSelectedIncidentId(incident.id)}
-                style={markerPosition(incident.latitude, incident.longitude)}
-                type="button"
-              >
-                <span
-                  className={`block size-5 rounded-full border-2 border-white ${severityMarker(incident.severity)}`}
-                />
-                <span className="pointer-events-none absolute left-7 top-1/2 hidden w-52 -translate-y-1/2 rounded-xl border border-white/10 bg-slate-950/95 p-3 text-xs text-slate-200 group-hover:block">
-                  {incident.title} · severity {incident.severity ?? "pending"}
-                </span>
-              </button>
-            ))}
-          {selectedIncident ? (
-            <article className="absolute right-6 top-6 z-30 w-[min(22rem,calc(100%-3rem))] rounded-2xl border border-white/10 bg-slate-950/90 p-5 backdrop-blur">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-xs uppercase tracking-wide text-emerald-200">
-                  {selectedIncident.incident_type.replaceAll("_", " ")}
-                </span>
-                <button
-                  aria-label="Close incident details"
-                  className="text-slate-500 hover:text-slate-200"
-                  onClick={() => setSelectedIncidentId(null)}
-                  type="button"
-                >
-                  ×
-                </button>
-              </div>
-              <h2 className="mt-3 font-semibold text-slate-100">
-                {selectedIncident.title}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                {selectedIncident.summary}
-              </p>
-              <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-                <span>Severity {selectedIncident.severity ?? "—"}</span>
-                <span>
-                  {selectedIncident.predicted_duration_minutes ?? "—"} min
-                </span>
-                <span>
-                  {selectedIncident.confidence === null
-                    ? "—"
-                    : `${Math.round(selectedIncident.confidence * 100)}%`}
-                </span>
-              </div>
-            </article>
-          ) : null}
-          {!snapshot.config ? (
-            <div className="absolute inset-x-6 bottom-6 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-5 text-sm text-amber-100">
-              Configure the public Supabase URL and anon key to activate the
-              Realtime city view.
-            </div>
-          ) : null}
         </div>
-        <div className="rounded-3xl border border-red-300/10 bg-red-300/[0.04] p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">
-              Runtime security
-            </p>
-            <span className="text-sm text-slate-400">
-              {securityFindings.length} recent
+        <HeartbeatWaveform
+          eventCount={rawEvents.length}
+          lastHeartbeatAt={health?.last_heartbeat_at}
+          status={health?.status ?? "standing by"}
+          variant="command"
+        />
+        <OperationsNav current="/dashboard" />
+      </header>
+
+      {snapshot.error ? (
+        <SystemNotice severity="critical">{snapshot.error}</SystemNotice>
+      ) : null}
+      {!snapshot.config ? (
+        <SystemNotice>
+          Public Supabase values are not loaded. The map remains ready while the
+          realtime channel waits for configuration.
+        </SystemNotice>
+      ) : null}
+
+      <StatStrip
+        items={[
+          {
+            label: "AGENT STATUS",
+            state: health?.status === "healthy" ? "live" : "neutral",
+            value: health?.status ?? "OFFLINE",
+          },
+          { label: "PENDING JOBS", value: String(health?.pending_jobs ?? 0) },
+          {
+            label: "REALTIME",
+            state: connection === "live" ? "live" : "neutral",
+            value: connection,
+          },
+          { label: "ACTIVE SIGNALS", value: String(incidents.length) },
+          {
+            label: "HIGH / CRITICAL",
+            state: criticalCount > 0 ? "critical" : "neutral",
+            value: String(criticalCount),
+          },
+        ]}
+      />
+
+      <section className="command-grid" aria-label="City operations overview">
+        <div className="map-instrument">
+          <div className="panel-heading panel-heading--overlay">
+            <div>
+              <span className="panel-kicker">GEO / ACTIVE INCIDENTS</span>
+              <h2>Austin operating picture</h2>
+            </div>
+            <span className="panel-readout">
+              {incidents.length} ACTIVE / {analyzingSignals.length} ANALYZING
             </span>
           </div>
-          {securityFindings.length === 0 ? (
-            <p className="text-sm text-slate-400">No threats detected.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {securityFindings
-                .slice(0, 4)
-                .map((finding: DashboardSecurityFinding) => (
-                  <article
-                    className="rounded-2xl border border-red-300/10 bg-black/10 p-4"
-                    key={finding.id}
-                  >
-                    <p className="text-xs uppercase tracking-wide text-red-200">
-                      {finding.severity} · {finding.stage}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-100">
-                      {finding.threat_type}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {finding.action_taken}
-                    </p>
-                  </article>
-                ))}
+          <AustinLeafletMap
+            analyzingSignals={analyzingSignals}
+            incidents={incidents}
+            onSelectIncident={setSelectedIncidentId}
+            selectedIncidentId={selectedIncident?.id ?? null}
+          />
+          <div className="map-legend" aria-label="Map severity legend">
+            <LegendItem label="ANALYZING" state="analyzing" />
+            <LegendItem label="LOW" state="low" />
+            <LegendItem label="MODERATE" state="moderate" />
+            <LegendItem label="HIGH / CRITICAL" state="high" />
+          </div>
+          {incidents.length === 0 && analyzingSignals.length === 0 ? (
+            <div className="map-empty-state">
+              <span className="map-empty-state__crosshair" aria-hidden="true" />
+              <p>Markers register here when a city signal clears ingestion.</p>
             </div>
-          )}
+          ) : null}
         </div>
+
+        <aside className="signal-rail" aria-label="Active incident detail">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">FOCUS / DECISION</span>
+              <h2>Active signal</h2>
+            </div>
+            <span className="panel-readout">
+              {selectedIncident
+                ? `SEV ${selectedIncident.severity ?? "--"}`
+                : "IDLE"}
+            </span>
+          </div>
+          {selectedIncident ? (
+            <IncidentDetail incident={selectedIncident} />
+          ) : (
+            <EmptySignal />
+          )}
+          <div className="signal-queue">
+            <p className="instrument-label">SIGNAL QUEUE</p>
+            {incidents.length === 0 ? (
+              <div className="signal-queue__empty" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : (
+              incidents.slice(0, 5).map((incident) => (
+                <button
+                  aria-pressed={incident.id === selectedIncident?.id}
+                  className="signal-queue__item"
+                  key={incident.id}
+                  onClick={() => setSelectedIncidentId(incident.id)}
+                  type="button"
+                >
+                  <span
+                    className={`severity-mark severity-mark--${severityBand(incident.severity)}`}
+                  />
+                  <span>{incident.title}</span>
+                  <span>{formatTime(incident.last_updated_at)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
       </section>
 
-      <aside className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300">
-              Agent timeline
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              activity revision {activityVersion}
-            </p>
+      <section className="operations-lower-grid">
+        <DispatchLog
+          activityVersion={activityVersion}
+          connection={connection}
+          entries={timeline}
+        />
+        <aside className="system-instruments">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">WORKER / INPUTS</span>
+              <h2>System instruments</h2>
+            </div>
+            <span className="panel-readout">REV {activityVersion}</span>
           </div>
-          <span
-            className={`size-2 rounded-full ${connection === "live" ? "bg-emerald-300" : "bg-amber-300"}`}
-          />
+          <div className="instrument-table">
+            <div className="instrument-table__row">
+              <span>WORKER ID</span>
+              <strong>{health?.worker_id ?? "UNASSIGNED"}</strong>
+            </div>
+            <div className="instrument-table__row">
+              <span>LAST HEARTBEAT</span>
+              <strong>
+                {health ? formatTime(health.last_heartbeat_at) : "--:--:--"}
+              </strong>
+            </div>
+            {sourceCounts.length === 0 ? (
+              <div className="instrument-table__row instrument-table__row--dim">
+                <span>FEED COUNTS</span>
+                <strong>AWAITING EVENTS</strong>
+              </div>
+            ) : (
+              sourceCounts.slice(0, 4).map(([source, count]) => (
+                <div className="instrument-table__row" key={source}>
+                  <span>{source.replaceAll("_", " ")}</span>
+                  <strong>{String(count).padStart(2, "0")}</strong>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="security-readout">
+            <div className="instrument-label">
+              SECURITY CHANNEL
+              <span>{securityFindings.length} RECENT</span>
+            </div>
+            {securityFindings.length === 0 ? (
+              <p className="instrument-empty-copy">
+                The detection lane will record blocked or quarantined input.
+              </p>
+            ) : (
+              securityFindings
+                .slice(0, 3)
+                .map((finding) => (
+                  <SecurityLine finding={finding} key={finding.id} />
+                ))
+            )}
+          </div>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
+function DispatchLog({
+  activityVersion,
+  connection,
+  entries,
+}: {
+  activityVersion: number;
+  connection: ConnectionState;
+  entries: DashboardTimeline[];
+}) {
+  return (
+    <section className="dispatch-log">
+      <div className="panel-heading">
+        <div>
+          <span className="panel-kicker">AGENT / DISPATCH</span>
+          <h2>Agent timeline</h2>
         </div>
-        <div className="space-y-5">
-          {timeline.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              Waiting for agent activity.
-            </p>
-          ) : null}
-          {timeline.map((entry: DashboardTimeline) => (
-            <article
-              className="border-l border-emerald-300/30 pl-4"
-              key={entry.id}
-            >
-              <p className="text-xs uppercase tracking-wide text-emerald-200">
-                {entry.event_type}
-              </p>
-              <p className="mt-1 text-sm leading-6 text-slate-200">
-                {entry.message}
-              </p>
-              <time className="mt-2 block text-xs text-slate-500">
-                {new Date(entry.created_at).toLocaleTimeString()}
+        <span className="panel-readout">
+          CH {String(activityVersion).padStart(3, "0")} / {connection}
+        </span>
+      </div>
+      {entries.length === 0 ? (
+        <div className="dispatch-empty">
+          <div aria-hidden="true" className="dispatch-empty__rows">
+            <span>--:--:--</span>
+            <i />
+            <b />
+            <span>--:--:--</span>
+            <i />
+            <b />
+            <span>--:--:--</span>
+            <i />
+            <b />
+          </div>
+          <p>The next worker decision will open this dispatch channel.</p>
+        </div>
+      ) : (
+        <ol className="dispatch-entries">
+          {entries.map((entry) => (
+            <li className="dispatch-entry" key={entry.id}>
+              <time dateTime={entry.created_at}>
+                {formatTime(entry.created_at)}
               </time>
-            </article>
+              <span className="dispatch-entry__type">
+                {entry.event_type.replaceAll("_", " ")}
+              </span>
+              <p>{entry.message}</p>
+            </li>
           ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function IncidentDetail({ incident }: { incident: DashboardIncident }) {
+  return (
+    <article className="incident-detail">
+      <div className="incident-detail__status">
+        <span
+          className={`severity-mark severity-mark--${severityBand(incident.severity)}`}
+        />
+        {incident.status.replaceAll("_", " ")} /{" "}
+        {incident.incident_type.replaceAll("_", " ")}
+      </div>
+      <h3>{incident.title}</h3>
+      <p>{incident.summary}</p>
+      <dl>
+        <div>
+          <dt>LOCATION</dt>
+          <dd>{incident.location_name ?? "Austin location pending"}</dd>
         </div>
-      </aside>
+        <div>
+          <dt>DURATION</dt>
+          <dd>{incident.predicted_duration_minutes ?? "--"} MIN</dd>
+        </div>
+        <div>
+          <dt>CONFIDENCE</dt>
+          <dd>
+            {incident.confidence === null
+              ? "--"
+              : `${Math.round(incident.confidence * 100)}%`}
+          </dd>
+        </div>
+      </dl>
+    </article>
+  );
+}
+
+function EmptySignal() {
+  return (
+    <div className="incident-empty">
+      <div aria-hidden="true" className="incident-empty__diagram">
+        <span />
+        <span />
+        <span />
+      </div>
+      <p>The focus rail opens when an active incident reaches analysis.</p>
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function SecurityLine({ finding }: { finding: DashboardSecurityFinding }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-xl font-semibold capitalize text-slate-100">
-        {value}
-      </p>
+    <div className="security-line">
+      <span className={finding.severity === "critical" ? "critical-text" : ""}>
+        {finding.severity}
+      </span>
+      <p>{finding.threat_type.replaceAll("_", " ")}</p>
+      <span>{finding.action_taken.replaceAll("_", " ")}</span>
     </div>
+  );
+}
+
+function LegendItem({
+  label,
+  state,
+}: {
+  label: string;
+  state: "analyzing" | "high" | "low" | "moderate";
+}) {
+  return (
+    <span className="map-legend__item">
+      <span className={`map-legend__mark map-legend__mark--${state}`} />
+      {label}
+    </span>
   );
 }

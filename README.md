@@ -10,6 +10,8 @@ PulseATX is a persistent, real-time city intelligence agent for Austin. A TypeSc
 
 ## Quick start
 
+For the complete Windows-first walkthrough, credential list, `.env` mapping, startup modes, verification commands, and troubleshooting, begin with [`START_HERE.md`](START_HERE.md).
+
 ```bash
 pnpm install
 cp .env.example .env
@@ -52,11 +54,11 @@ The heartbeat is a separate TypeScript process; it never runs in Next.js or Verc
 pnpm dev:agent
 ```
 
-On startup it recovers stale Postgres jobs, polls only due sources, persists source and agent health, and shuts down cleanly on `SIGINT` or `SIGTERM`. Open `/dashboard` for the reconnecting Supabase Realtime view.
+On startup it recovers stale Postgres jobs, polls only due sources, persists source and agent health, and shuts down cleanly on `SIGINT` or `SIGTERM`. Open `/dashboard` for the reconnecting Supabase Realtime view and its Leaflet map using CARTO Dark Matter tiles with OpenStreetMap data.
 
 ## Nemotron through vLLM
 
-Set `VLLM_BASE_URL` to an OpenAI-compatible `/v1` endpoint and `NEMOTRON_MODEL` to the served model name. The worker claims at most eight jobs per heartbeat and runs at most four model requests concurrently. Structured responses are Zod-validated, repaired once, and replaced with a persisted deterministic fallback if validation still fails.
+Set `VLLM_BASE_URL` to an OpenAI-compatible `/v1` endpoint and `NEMOTRON_MODEL` to the served model name. The shared OpenAI SDK client powers both incident analysis and recursive lesson extraction. It discards vLLM `reasoning_content` and tagged reasoning blocks before the final JSON is security-scanned and Zod-validated. The worker claims at most eight jobs per heartbeat and runs at most four model requests concurrently. Invalid structured responses are repaired once and replaced with a persisted deterministic fallback if validation still fails.
 
 ## Runtime security
 
