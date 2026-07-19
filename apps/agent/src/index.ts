@@ -1,8 +1,17 @@
-import "dotenv/config";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { loadAgentEnvironment } from "@pulse-atx/schemas";
 import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
+
+const localEnvironmentPath = resolve(process.cwd(), ".env");
+const workspaceEnvironmentPath = resolve(process.cwd(), "../../.env");
+if (existsSync(localEnvironmentPath)) {
+  process.loadEnvFile(localEnvironmentPath);
+} else if (existsSync(workspaceEnvironmentPath)) {
+  process.loadEnvFile(workspaceEnvironmentPath);
+}
 
 import { DemoControlServer } from "./control/control-server.js";
 import { MissionExecutionEngine } from "./commander/mission-engine.js";
@@ -93,15 +102,26 @@ if (environment.DEMO_MODE) {
     modelName: requireValue(environment.NEMOTRON_MODEL, "NEMOTRON_MODEL"),
   });
   const security = new HiddenLayerClient({
-    apiKey: requireValue(
-      environment.HIDDENLAYER_API_KEY,
-      "HIDDENLAYER_API_KEY",
-    ),
     baseUrl: requireValue(
       environment.HIDDENLAYER_BASE_URL,
       "HIDDENLAYER_BASE_URL",
     ),
     requesterId: environment.WORKER_ID,
+    ...(environment.HIDDENLAYER_API_KEY
+      ? { apiKey: environment.HIDDENLAYER_API_KEY }
+      : {
+          clientId: requireValue(
+            environment.HIDDENLAYER_CLIENT_ID,
+            "HIDDENLAYER_CLIENT_ID",
+          ),
+          clientSecret: requireValue(
+            environment.HIDDENLAYER_CLIENT_SECRET,
+            "HIDDENLAYER_CLIENT_SECRET",
+          ),
+        }),
+    ...(environment.HIDDENLAYER_AUTH_URL
+      ? { authUrl: environment.HIDDENLAYER_AUTH_URL }
+      : {}),
   });
   const learningRepository = new SupabaseLearningRepository(client);
   memoryService = new MemoryService(

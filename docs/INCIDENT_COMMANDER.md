@@ -119,7 +119,8 @@ The persistent production path uses real provider adapters rather than the deter
 | `VLLM_API_KEY`              | vLLM bearer token when required              |
 | `NEMOTRON_MODEL`            | Served model name, such as `nemotron-3-nano` |
 | `HIDDENLAYER_BASE_URL`      | HiddenLayer API origin                       |
-| `HIDDENLAYER_API_KEY`       | Pre/post-model and tool scan credential      |
+| `HIDDENLAYER_CLIENT_ID`     | HiddenLayer OAuth client identifier          |
+| `HIDDENLAYER_CLIENT_SECRET` | Pre/post-model and tool scan credential      |
 | `EMBEDDING_BASE_URL`        | OpenAI-compatible embeddings `/v1` endpoint  |
 | `EMBEDDING_API_KEY`         | Embedding bearer token when required         |
 | `EMBEDDING_MODEL`           | Model that returns exactly 384 dimensions    |

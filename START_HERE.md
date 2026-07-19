@@ -134,8 +134,10 @@ EMBEDDING_BASE_URL=http://127.0.0.1:8001/v1
 EMBEDDING_API_KEY=
 EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 
-HIDDENLAYER_API_KEY=
 HIDDENLAYER_BASE_URL=https://api.hiddenlayer.ai
+HIDDENLAYER_AUTH_URL=https://auth.hiddenlayer.ai
+HIDDENLAYER_CLIENT_ID=
+HIDDENLAYER_CLIENT_SECRET=
 
 DEMO_MODE=false
 CONTROL_SERVER_ENABLED=true
@@ -146,7 +148,7 @@ DEMO_SECRET=
 DEMO_OPERATOR=Austin Emergency Operations Center
 ```
 
-Blank values in this example must be filled when the corresponding provider requires them. `SUPABASE_SERVICE_ROLE_KEY`, `HIDDENLAYER_API_KEY`, and `DEMO_SECRET` are always secrets.
+Blank values in this example must be filled when the corresponding provider requires them. `SUPABASE_SERVICE_ROLE_KEY`, `HIDDENLAYER_CLIENT_SECRET`, and `DEMO_SECRET` are always secrets.
 
 Generate `DEMO_SECRET` locally:
 
@@ -212,10 +214,12 @@ The live worker requires HiddenLayer Runtime Security before and after model exe
 
 Required:
 
-- `HIDDENLAYER_API_KEY`: your Runtime Security API credential.
+- `HIDDENLAYER_CLIENT_ID`: the client ID shown when the API key is created.
+- `HIDDENLAYER_CLIENT_SECRET`: the matching client secret.
 - `HIDDENLAYER_BASE_URL`: normally `https://api.hiddenlayer.ai`.
+- `HIDDENLAYER_AUTH_URL`: optional; defaults to `https://auth.hiddenlayer.ai`.
 
-Without this key, use `DEMO_MODE=true` for local smoke tests. Do not put a fake key into a live configuration; the worker will start but security calls will fail and jobs will be retried or marked failed.
+Without these credentials, use `DEMO_MODE=true` for local smoke tests. Do not put fake credentials into a live configuration; security calls will fail and jobs will be retried or marked failed.
 
 ### 5. Demo Control Secret
 
@@ -256,7 +260,8 @@ The worker refuses to start unless all of these are present:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `VLLM_BASE_URL`
 - `NEMOTRON_MODEL`
-- `HIDDENLAYER_API_KEY`
+- `HIDDENLAYER_CLIENT_ID`
+- `HIDDENLAYER_CLIENT_SECRET`
 - `HIDDENLAYER_BASE_URL`
 - `EMBEDDING_BASE_URL`
 - `EMBEDDING_MODEL`
@@ -506,7 +511,7 @@ Confirm the configured base URL ends in `/v1`, the model name exactly matches th
 
 ### HiddenLayer Calls Fail
 
-Confirm `HIDDENLAYER_API_KEY` is a valid Runtime Security credential and `HIDDENLAYER_BASE_URL` is the API origin, not a console page URL.
+Confirm `HIDDENLAYER_CLIENT_ID` and `HIDDENLAYER_CLIENT_SECRET` are a valid credential pair, `HIDDENLAYER_BASE_URL` is the API origin, and the API key has Interactions read/write permission.
 
 ## Stop and Restart
 
@@ -528,7 +533,7 @@ pnpm dlx supabase@2.58.5 db reset
 ## Security Checklist
 
 - Keep `.env` untracked.
-- Never expose `SUPABASE_SERVICE_ROLE_KEY`, `HIDDENLAYER_API_KEY`, model keys, embedding keys, or `DEMO_SECRET` through `NEXT_PUBLIC_` variables.
+- Never expose `SUPABASE_SERVICE_ROLE_KEY`, `HIDDENLAYER_CLIENT_SECRET`, model keys, embedding keys, or `DEMO_SECRET` through `NEXT_PUBLIC_` variables.
 - Use an exact `CONTROL_ALLOWED_ORIGIN`.
 - Keep the control server on loopback unless it is behind authenticated TLS and an approved OpenShell route.
 - Do not treat Docker as a containment boundary.

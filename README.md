@@ -35,7 +35,7 @@ The final autonomous mission runbook is [`docs/INCIDENT_COMMANDER.md`](docs/INCI
 - `supabase` — local configuration, migrations, and seeds
 - `policies` — NemoClaw and OpenShell runtime policies
 
-Copy `.env.example` to `.env`. Keep `SUPABASE_SERVICE_ROLE_KEY`, model keys, embedding keys, and `HIDDENLAYER_API_KEY` server-side only.
+Copy `.env.example` to `.env`. Keep `SUPABASE_SERVICE_ROLE_KEY`, model keys, embedding keys, and `HIDDENLAYER_CLIENT_SECRET` server-side only.
 
 ## Local Supabase
 

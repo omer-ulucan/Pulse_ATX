@@ -21,16 +21,47 @@ const DetectionSchema = z
 const HiddenLayerResponseSchema = z
   .object({
     action: z.string().optional(),
+    analysis: z
+      .array(
+        z
+          .object({
+            detected: z.boolean(),
+            name: z.string(),
+            phase: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .default([]),
     detections: z.array(DetectionSchema).default([]),
+    evaluation: z
+      .object({
+        action: z.string(),
+        has_detections: z.boolean(),
+        threat_level: z.string(),
+      })
+      .optional(),
     event_id: z.string().optional(),
     interaction_id: z.string().optional(),
+    metadata: z
+      .object({ event_id: z.string().nullable().optional() })
+      .passthrough()
+      .optional(),
     threat_level: z.string().optional(),
   })
   .passthrough();
 
+const HiddenLayerTokenSchema = z.object({
+  access_token: z.string().min(1),
+  expires_in: z.coerce.number().positive().default(3_600),
+  token_type: z.string().default("Bearer"),
+});
+
 export interface HiddenLayerClientOptions {
-  apiKey: string;
+  apiKey?: string;
+  authUrl?: string;
   baseUrl: string;
+  clientId?: string;
+  clientSecret?: string;
   requesterId: string;
   timeoutMs?: number;
 }
@@ -54,13 +85,53 @@ function isOutputStage(stage: SecurityStage): boolean {
 export class HiddenLayerClient implements SecurityScanner {
   private readonly endpoint: string;
   private readonly timeoutMs: number;
+  private accessToken: { expiresAt: number; value: string } | undefined;
 
   constructor(
     private readonly options: HiddenLayerClientOptions,
     private readonly fetcher: typeof fetch = fetch,
   ) {
+    if (!options.apiKey && (!options.clientId || !options.clientSecret)) {
+      throw new Error(
+        "HiddenLayer requires HIDDENLAYER_CLIENT_ID and HIDDENLAYER_CLIENT_SECRET",
+      );
+    }
     this.endpoint = `${options.baseUrl.replace(/\/$/, "")}/detection/v1/interactions`;
     this.timeoutMs = options.timeoutMs ?? 10_000;
+  }
+
+  private async authorizationHeader(signal?: AbortSignal): Promise<string> {
+    if (this.options.apiKey) return `Bearer ${this.options.apiKey}`;
+    if (this.accessToken && this.accessToken.expiresAt > Date.now() + 60_000) {
+      return `Bearer ${this.accessToken.value}`;
+    }
+
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const response = await this.fetcher(
+      `${(this.options.authUrl ?? "https://auth.hiddenlayer.ai").replace(/\/$/, "")}/oauth2/token`,
+      {
+        body: new URLSearchParams({
+          client_id: this.options.clientId!,
+          client_secret: this.options.clientSecret!,
+          grant_type: "client_credentials",
+        }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        method: "POST",
+        signal: requestSignal,
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `HiddenLayer authentication returned HTTP ${response.status}`,
+      );
+    }
+    const token = HiddenLayerTokenSchema.parse(await response.json());
+    this.accessToken = {
+      expiresAt: Date.now() + token.expires_in * 1_000,
+      value: token.access_token,
+    };
+    return `${token.token_type} ${token.access_token}`;
   }
 
   async scan(
@@ -69,21 +140,31 @@ export class HiddenLayerClient implements SecurityScanner {
     metadata: Record<string, unknown> = {},
     signal?: AbortSignal,
   ): Promise<SecurityScanResult> {
+    const authorization = await this.authorizationHeader(signal);
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
     const outputStage = isOutputStage(stage);
     const response = await this.fetcher(this.endpoint, {
       body: JSON.stringify({
-        metadata: { ...metadata, stage },
-        model: "nemotron-vllm",
-        output: outputStage ? content : undefined,
-        prompt: outputStage ? undefined : content,
-        requester_id: this.options.requesterId,
+        metadata: {
+          model:
+            typeof metadata.model === "string"
+              ? metadata.model
+              : "nemotron-vllm",
+          provider: "vllm",
+          requester_id: this.options.requesterId,
+        },
+        input: outputStage
+          ? undefined
+          : { messages: [{ content, role: "user" }] },
+        output: outputStage
+          ? { messages: [{ content, role: "assistant" }] }
+          : undefined,
       }),
       headers: {
-        Authorization: `Bearer ${this.options.apiKey}`,
+        Authorization: authorization,
         "Content-Type": "application/json",
-        "X-API-Key": this.options.apiKey,
+        ...(this.options.apiKey ? { "X-API-Key": this.options.apiKey } : {}),
       },
       method: "POST",
       signal: requestSignal,
@@ -92,17 +173,28 @@ export class HiddenLayerClient implements SecurityScanner {
       throw new Error(`HiddenLayer returned HTTP ${response.status}`);
     const raw: unknown = await response.json();
     const parsed = HiddenLayerResponseSchema.parse(raw);
-    const detections: SecurityDetection[] = parsed.detections.map(
+    const threatLevel = parsed.evaluation?.threat_level ?? parsed.threat_level;
+    const legacyDetections: SecurityDetection[] = parsed.detections.map(
       (detection) => ({
         category:
           detection.category ?? detection.type ?? "runtime_security_detection",
         message: detection.message ?? "HiddenLayer policy detection",
-        severity: normalizeSeverity(detection.severity ?? parsed.threat_level),
+        severity: normalizeSeverity(detection.severity ?? threatLevel),
       }),
     );
-    const actionValue = parsed.action?.toLowerCase();
+    const analysisDetections: SecurityDetection[] = parsed.analysis
+      .filter((analysis) => analysis.detected)
+      .map((analysis) => ({
+        category: analysis.name,
+        message: `HiddenLayer ${analysis.name} detection`,
+        severity: normalizeSeverity(threatLevel),
+      }));
+    const detections = [...legacyDetections, ...analysisDetections];
+    const actionValue = (
+      parsed.evaluation?.action ?? parsed.action
+    )?.toLowerCase();
     const highThreat = ["critical", "high"].includes(
-      parsed.threat_level?.toLowerCase() ?? "",
+      threatLevel?.toLowerCase() ?? "",
     );
     const detectionBlocks = parsed.detections.some(
       (detection) => detection.action?.toLowerCase() === "block",
@@ -113,7 +205,11 @@ export class HiddenLayerClient implements SecurityScanner {
       blocked,
       details: parsed,
       detections,
-      eventId: parsed.event_id ?? parsed.interaction_id ?? null,
+      eventId:
+        parsed.metadata?.event_id ??
+        parsed.event_id ??
+        parsed.interaction_id ??
+        null,
       provider: "hiddenlayer",
       stage,
     };

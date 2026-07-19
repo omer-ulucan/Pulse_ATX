@@ -20,4 +20,21 @@ describe("mission runtime environment", () => {
       }),
     ).toThrow("Invalid agent environment");
   });
+
+  it("accepts HiddenLayer client credentials for live mode", () => {
+    expect(() =>
+      loadAgentEnvironment({
+        DEMO_MODE: "false",
+        EMBEDDING_BASE_URL: "https://embeddings.example.com/v1",
+        EMBEDDING_MODEL: "test-embedding",
+        HIDDENLAYER_BASE_URL: "https://api.hiddenlayer.ai",
+        HIDDENLAYER_CLIENT_ID: "test-client-id",
+        HIDDENLAYER_CLIENT_SECRET: "test-client-secret",
+        NEMOTRON_MODEL: "nemotron-test",
+        SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+        SUPABASE_URL: "https://test.supabase.co",
+        VLLM_BASE_URL: "https://vllm.example.com/v1",
+      }),
+    ).not.toThrow();
+  });
 });

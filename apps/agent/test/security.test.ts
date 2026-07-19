@@ -163,6 +163,58 @@ describe("HiddenLayer security pipeline", () => {
     );
   });
 
+  it("exchanges client credentials once and reuses the access token", async () => {
+    const requests: Array<{ authorization: string | null; url: string }> = [];
+    const fetcher: typeof fetch = (input, init) => {
+      const url =
+        input instanceof Request
+          ? input.url
+          : input instanceof URL
+            ? input.href
+            : input;
+      const authorization = new Headers(init?.headers).get("Authorization");
+      requests.push({ authorization, url });
+      if (url.endsWith("/oauth2/token")) {
+        expect(init?.body).toBeInstanceOf(URLSearchParams);
+        if (!(init?.body instanceof URLSearchParams)) {
+          throw new Error("Expected form-encoded HiddenLayer credentials");
+        }
+        expect(init.body.get("grant_type")).toBe("client_credentials");
+        return Promise.resolve(
+          Response.json({
+            access_token: "short-lived-test-token",
+            expires_in: 3_599,
+            token_type: "Bearer",
+          }),
+        );
+      }
+      return Promise.resolve(
+        Response.json({ action: "allow", detections: [] }),
+      );
+    };
+    const scanner = new HiddenLayerClient(
+      {
+        authUrl: "https://auth.hiddenlayer.test",
+        baseUrl: "https://api.hiddenlayer.test",
+        clientId: "test-client",
+        clientSecret: "test-secret",
+        requesterId: "pulse-test",
+      },
+      fetcher,
+    );
+
+    await scanner.scan("model_prompt", "first safe prompt");
+    await scanner.scan("model_output", "first safe response");
+
+    expect(requests.map(({ url }) => url)).toEqual([
+      "https://auth.hiddenlayer.test/oauth2/token",
+      "https://api.hiddenlayer.test/detection/v1/interactions",
+      "https://api.hiddenlayer.test/detection/v1/interactions",
+    ]);
+    expect(requests[1]?.authorization).toBe("Bearer short-lived-test-token");
+    expect(requests[2]?.authorization).toBe("Bearer short-lived-test-token");
+  });
+
   it("guards tool arguments and results through the same scanner", async () => {
     const boundary = new ToolSecurityBoundary(
       new DeterministicSecurityScanner(),

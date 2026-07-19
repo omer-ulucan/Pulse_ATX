@@ -126,7 +126,10 @@ const AgentEnvironmentSchema = z
     EMBEDDING_BASE_URL: optionalUrl,
     EMBEDDING_MODEL: optionalString,
     HIDDENLAYER_API_KEY: optionalString,
+    HIDDENLAYER_AUTH_URL: optionalUrl,
     HIDDENLAYER_BASE_URL: optionalUrl,
+    HIDDENLAYER_CLIENT_ID: optionalString,
+    HIDDENLAYER_CLIENT_SECRET: optionalString,
     HEARTBEAT_INTERVAL_MS: integerString(5_000, 1_000, 60_000),
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace"])
@@ -170,7 +173,6 @@ const AgentEnvironmentSchema = z
         "SUPABASE_SERVICE_ROLE_KEY",
         "VLLM_BASE_URL",
         "NEMOTRON_MODEL",
-        "HIDDENLAYER_API_KEY",
         "HIDDENLAYER_BASE_URL",
         "EMBEDDING_BASE_URL",
         "EMBEDDING_MODEL",
@@ -182,6 +184,17 @@ const AgentEnvironmentSchema = z
             path: [key],
           });
         }
+      }
+      if (
+        !value.HIDDENLAYER_API_KEY &&
+        (!value.HIDDENLAYER_CLIENT_ID || !value.HIDDENLAYER_CLIENT_SECRET)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "Set HIDDENLAYER_CLIENT_ID and HIDDENLAYER_CLIENT_SECRET when DEMO_MODE=false",
+          path: ["HIDDENLAYER_CLIENT_ID"],
+        });
       }
     }
   });
