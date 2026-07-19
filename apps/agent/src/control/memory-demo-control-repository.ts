@@ -5,6 +5,7 @@ import type { DemoScenario } from "@pulse-atx/schemas";
 import type {
   DemoControlRepository,
   DemoResult,
+  MissionToolDecision,
 } from "./demo-control-repository.js";
 
 export class MemoryDemoControlRepository implements DemoControlRepository {
@@ -25,9 +26,12 @@ export class MemoryDemoControlRepository implements DemoControlRepository {
     executionId: string,
     operator: string,
     approved: boolean,
-  ): Promise<string> {
+  ): Promise<MissionToolDecision> {
     this.missionDecisions.push({ approved, executionId, operator });
-    return Promise.resolve(executionId);
+    return Promise.resolve({
+      approvalStatus: approved ? "approved" : "rejected",
+      executionId,
+    });
   }
 
   runScenario(scenario: DemoScenario, nonce: string): Promise<DemoResult> {

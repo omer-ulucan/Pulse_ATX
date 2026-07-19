@@ -131,6 +131,15 @@ const AgentEnvironmentSchema = z
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace"])
       .default("info"),
+    MISSION_CLAIM_LIMIT: integerString(4, 1, 12),
+    MISSION_CONCURRENCY: integerString(2, 1, 4),
+    MISSION_LEASE_SECONDS: integerString(60, 15, 300),
+    MISSION_MAX_LIFETIME_MS: integerString(
+      4 * 60 * 60_000,
+      60_000,
+      24 * 60 * 60_000,
+    ),
+    MISSION_MAX_TOOL_EXECUTIONS_PER_WAKE: integerString(12, 1, 12),
     NEMOTRON_MODEL: optionalString,
     NOAA_ALERTS_URL: optionalUrl,
     SUPABASE_SERVICE_ROLE_KEY: optionalString,

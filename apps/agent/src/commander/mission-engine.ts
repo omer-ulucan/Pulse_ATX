@@ -52,6 +52,72 @@ export interface MissionWakeResult {
   mission: MissionRecord;
 }
 
+function toolCompletionEvent(
+  toolName: MissionStepRecord["toolName"],
+  result: unknown,
+): { eventType: string; message: string } {
+  const messages: Partial<
+    Record<MissionStepRecord["toolName"], [string, string]>
+  > = {
+    cancel_pending_action: [
+      "mission_pending_action_cancelled",
+      "Pending escalation action cancelled",
+    ],
+    check_weather_conditions: [
+      "mission_weather_checked",
+      "Weather amplification confirmed",
+    ],
+    close_incident: ["mission_incident_closed", "Incident closed"],
+    create_alert_draft: ["mission_alert_drafted", "Alert draft created"],
+    find_affected_transit_routes: [
+      "mission_transit_checked",
+      "Transit routes checked",
+    ],
+    publish_simulated_alert: [
+      "mission_alert_published",
+      "Alert published in simulation",
+    ],
+    record_incident_outcome: ["mission_outcome_recorded", "Outcome recorded"],
+    request_human_approval: [
+      "mission_approval_boundary_created",
+      "Human approval boundary created",
+    ],
+    retrieve_similar_incidents: [
+      "mission_history_retrieved",
+      "Historical incidents retrieved",
+    ],
+    revise_alert_draft: ["mission_alert_revised", "Alert draft revised"],
+    store_incident_lesson: ["mission_lesson_stored", "Lesson stored"],
+  };
+  if (
+    toolName === "update_incident_severity" &&
+    typeof result === "object" &&
+    result !== null &&
+    "previousSeverity" in result &&
+    "severity" in result &&
+    typeof result.previousSeverity === "number" &&
+    typeof result.severity === "number"
+  ) {
+    const direction =
+      result.severity > result.previousSeverity
+        ? "raised"
+        : result.severity < result.previousSeverity
+          ? "lowered"
+          : "confirmed";
+    return {
+      eventType: `mission_severity_${direction}`,
+      message: `Severity ${direction} from ${result.previousSeverity} to ${result.severity}`,
+    };
+  }
+  const event = messages[toolName];
+  return event
+    ? { eventType: event[0], message: event[1] }
+    : {
+        eventType: "mission_tool_completed",
+        message: `${toolName} completed`,
+      };
+}
+
 function planFromRecords(
   mission: MissionRecord,
   steps: MissionStepRecord[],
@@ -214,6 +280,19 @@ export class MissionExecutionEngine {
           signal,
         );
       }
+      if (plannedStep.status === "planned") {
+        await this.repository.appendTimeline({
+          eventType: "mission_tool_proposed",
+          incidentId: mission.incidentId,
+          message: "Tool call proposed",
+          metadata: {
+            planVersion: mission.planVersion,
+            stepOrder: plannedStep.stepOrder,
+            toolName: plannedStep.toolName,
+          },
+          missionId: mission.id,
+        });
+      }
       const runningStep = await this.repository.markStepRunning(plannedStep.id);
       const definition = this.registry.resolve(runningStep.toolName).definition;
       let audit: CounterfactualAudit | null = runningStep.decisionAudit;
@@ -267,10 +346,14 @@ export class MissionExecutionEngine {
           "active",
           { currentStep: runningStep.stepOrder },
         );
+        const completionEvent = toolCompletionEvent(
+          runningStep.toolName,
+          outcome.result,
+        );
         await this.repository.appendTimeline({
-          eventType: "mission_tool_completed",
+          eventType: completionEvent.eventType,
           incidentId: mission.incidentId,
-          message: `${runningStep.toolName} completed`,
+          message: completionEvent.message,
           metadata: {
             planVersion: mission.planVersion,
             stepOrder: runningStep.stepOrder,

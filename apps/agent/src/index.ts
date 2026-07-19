@@ -149,13 +149,23 @@ if (environment.DEMO_MODE) {
     toolRegistry,
     missionOperations,
     missionToolRunner,
+    {
+      maxMissionLifetimeMs: environment.MISSION_MAX_LIFETIME_MS,
+      maxToolExecutionsPerWake:
+        environment.MISSION_MAX_TOOL_EXECUTIONS_PER_WAKE,
+    },
   );
   missionProcessor = new MissionLifecycleCoordinator(
     missionRepository,
     missionPlanner,
     missionEngine,
     missionOperations,
-    { workerId: environment.WORKER_ID },
+    {
+      claimLimit: environment.MISSION_CLAIM_LIMIT,
+      concurrency: environment.MISSION_CONCURRENCY,
+      leaseSeconds: environment.MISSION_LEASE_SECONDS,
+      workerId: environment.WORKER_ID,
+    },
   );
   if (environment.AUSTIN_TRAFFIC_FEED_URL) {
     const ingestion = new IngestionService(

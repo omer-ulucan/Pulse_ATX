@@ -216,21 +216,21 @@ export class DemoControlServer {
     if (request.method === "POST" && missionDecisionMatch) {
       const executionId = z.uuid().parse(missionDecisionMatch[1]);
       const body = MissionDecisionBodySchema.parse(await readJsonBody(request));
-      await this.repository.decideMissionTool(
+      const decision = await this.repository.decideMissionTool(
         executionId,
         body.operator,
         body.approved,
       );
       this.logger("mission tool decision recorded", {
-        approved: body.approved,
+        approvalStatus: decision.approvalStatus,
         executionId,
         operator: body.operator,
       });
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(
         JSON.stringify({
-          approvalStatus: body.approved ? "approved" : "rejected",
-          executionId,
+          approvalStatus: decision.approvalStatus,
+          executionId: decision.executionId,
         }),
       );
       return;

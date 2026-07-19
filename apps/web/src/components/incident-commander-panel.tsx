@@ -136,26 +136,25 @@ export function IncidentCommanderPanel({
   const latestAudit = [...currentSteps]
     .reverse()
     .find((step) => step.decision_audit !== null)?.decision_audit;
-  const pendingExecution = mission
-    ? (executions.find(
-        (execution) =>
-          execution.mission_id === mission.id &&
-          execution.approval_status === "pending",
-      ) ?? null)
-    : null;
+  const pendingExecution =
+    mission?.status === "waiting_approval"
+      ? (executions.find(
+          (execution) =>
+            execution.mission_id === mission.id &&
+            execution.approval_status === "pending",
+        ) ?? null)
+      : null;
   const approvalStep = pendingExecution?.mission_step_id
     ? (steps.find((step) => step.id === pendingExecution.mission_step_id) ??
       null)
     : null;
   const history = mission
-    ? timeline
-        .filter(
-          (entry) =>
-            entry.incident_id === mission.incident_id &&
-            (entry.metadata.missionId === undefined ||
-              entry.metadata.missionId === mission.id),
-        )
-        .slice(0, 14)
+    ? timeline.filter(
+        (entry) =>
+          entry.incident_id === mission.incident_id &&
+          (entry.metadata.missionId === undefined ||
+            entry.metadata.missionId === mission.id),
+      )
     : [];
   const planVersions = mission
     ? [
@@ -391,8 +390,10 @@ export function IncidentCommanderPanel({
                   HUMAN BOUNDARY / ACTION STOPPED
                 </span>
                 <h3>
-                  {toolLabels[pendingExecution.tool_name] ??
-                    pendingExecution.tool_name.replaceAll("_", " ")}
+                  {typeof pendingExecution.arguments.summary === "string"
+                    ? pendingExecution.arguments.summary
+                    : (toolLabels[pendingExecution.tool_name] ??
+                      pendingExecution.tool_name.replaceAll("_", " "))}
                 </h3>
                 <p>
                   {approvalStep?.rationale ??

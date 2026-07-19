@@ -306,6 +306,37 @@ describe("Autonomous Incident Commander planning and execution", () => {
     );
   });
 
+  it("fails a mission that exceeds its configured maximum lifetime", async () => {
+    let clock = fixedNow;
+    const repository = new MemoryMissionRepository(() => clock);
+    const creation = await repository.createMission({
+      goal: "Stop this mission when its configured maximum lifetime expires.",
+      incidentId,
+      priority: 3,
+      triggerReason: { severityAtLeast3: true },
+    });
+    clock = new Date(fixedNow.getTime() + 60_001);
+    const registry = createDefaultToolRegistry();
+    const engine = new MissionExecutionEngine(
+      repository,
+      new MissionPlanner(new QueueModel([]), registry),
+      registry,
+      new StaticContextProvider(snapshot()),
+      new CompletingRunner(),
+      { maxMissionLifetimeMs: 60_000, now: () => clock },
+    );
+
+    await expect(
+      engine.processMission(creation.mission.id),
+    ).resolves.toMatchObject({
+      executions: 0,
+      mission: {
+        failureReason: "Maximum configured mission lifetime exceeded",
+        status: "failed",
+      },
+    });
+  });
+
   it("creates at most one active mission when the same incident repeats", async () => {
     const repository = new MemoryMissionRepository(() => fixedNow);
     const registry = createDefaultToolRegistry();
@@ -335,5 +366,28 @@ describe("Autonomous Incident Commander planning and execution", () => {
     expect(duplicate.created).toBe(false);
     expect(duplicate.mission.id).toBe(first.mission.id);
     expect(commander).toBeDefined();
+  });
+
+  it("recovers an active mission after a stale worker lease expires", async () => {
+    let clock = new Date("2026-07-19T14:00:00.000Z");
+    const repository = new MemoryMissionRepository(() => clock);
+    const creation = await repository.createMission({
+      goal: "Recover this mission after a worker restart without duplicating it.",
+      incidentId,
+      priority: 3,
+      triggerReason: { severityAtLeast3: true },
+    });
+
+    await expect(
+      repository.claimMissions("worker-before-restart", 1, 15),
+    ).resolves.toMatchObject([{ id: creation.mission.id }]);
+    clock = new Date("2026-07-19T14:00:10.000Z");
+    await expect(
+      repository.claimMissions("replacement-worker", 1, 15),
+    ).resolves.toHaveLength(0);
+    clock = new Date("2026-07-19T14:00:16.000Z");
+    await expect(
+      repository.claimMissions("replacement-worker", 1, 15),
+    ).resolves.toMatchObject([{ id: creation.mission.id }]);
   });
 });

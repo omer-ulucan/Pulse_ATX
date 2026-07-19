@@ -11,6 +11,10 @@ const DemoResultSchema = z.object({
 });
 
 export type DemoResult = z.infer<typeof DemoResultSchema>;
+export interface MissionToolDecision {
+  approvalStatus: "approved" | "rejected";
+  executionId: string;
+}
 
 export interface DemoControlRepository {
   approveAlert(alertId: string, operator: string): Promise<string>;
@@ -18,7 +22,7 @@ export interface DemoControlRepository {
     executionId: string,
     operator: string,
     approved: boolean,
-  ): Promise<string>;
+  ): Promise<MissionToolDecision>;
   runScenario(scenario: DemoScenario, nonce: string): Promise<DemoResult>;
 }
 
@@ -39,15 +43,24 @@ export class SupabaseDemoControlRepository implements DemoControlRepository {
     executionId: string,
     operator: string,
     approved: boolean,
-  ): Promise<string> {
+  ): Promise<MissionToolDecision> {
     const response = (await this.client.rpc("decide_agent_tool_approval", {
       p_approved: approved,
       p_execution_id: executionId,
       p_operator: operator,
-    })) as { data: { id?: unknown } | null; error: { message: string } | null };
+    })) as { data: unknown; error: { message: string } | null };
     if (response.error)
       throw new Error(`Mission approval failed: ${response.error.message}`);
-    return z.uuid().parse(response.data?.id);
+    const decision = z
+      .object({
+        approval_status: z.enum(["approved", "rejected"]),
+        id: z.uuid(),
+      })
+      .parse(response.data);
+    return {
+      approvalStatus: decision.approval_status,
+      executionId: decision.id,
+    };
   }
 
   async runScenario(

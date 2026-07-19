@@ -197,7 +197,7 @@ export function RealtimeDashboard({
             const parsed = DashboardTimelineSchema.safeParse(payload.new);
             if (parsed.success)
               setTimeline((items) =>
-                upsertById(items, parsed.data).slice(0, 30),
+                upsertById(items, parsed.data).slice(0, 250),
               );
           },
         )
@@ -454,7 +454,7 @@ export function RealtimeDashboard({
         <DispatchLog
           activityVersion={activityVersion}
           connection={connection}
-          entries={timeline}
+          entries={timeline.slice(0, 30)}
         />
         <aside className="system-instruments">
           <div className="panel-heading">

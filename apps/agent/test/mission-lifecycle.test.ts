@@ -81,6 +81,25 @@ class MutableProvider implements MissionCandidateProvider {
   }
 }
 
+class FlakyProvider extends MutableProvider {
+  calls = 0;
+
+  constructor(
+    current: IncidentSnapshot,
+    private readonly failures: number,
+  ) {
+    super(current);
+  }
+
+  override getIncidentSnapshot(): Promise<IncidentSnapshot> {
+    this.calls += 1;
+    if (this.calls <= this.failures) {
+      return Promise.reject(new Error("Transient Supabase read failure"));
+    }
+    return Promise.resolve(this.current);
+  }
+}
+
 class LifecycleRunner implements MissionToolRunner {
   constructor(private readonly now: () => Date) {}
 
@@ -782,7 +801,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
       assumptions: ["Traffic, transit, and weather feeds are correlated."],
       goal: "Minimize commuter disruption around North Lamar while monitoring for escalation.",
       priority: 3,
-      recheckAfterSeconds: 15,
+      recheckAfterSeconds: 60,
       steps: [
         {
           arguments: { incidentId, limit: 6 },
@@ -821,7 +840,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
           tool: "create_alert_draft",
         },
         {
-          arguments: { afterSeconds: 15, missionId },
+          arguments: { afterSeconds: 60, missionId },
           order: 5,
           rationale: "Recheck live conditions before protected action.",
           requiresFreshObservation: false,
@@ -838,7 +857,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
       explanation:
         "A second blocked lane and nine additional transit-delay minutes invalidate the initial assumptions.",
       newSeverity: 5,
-      recheckAfterSeconds: 15,
+      recheckAfterSeconds: 60,
     });
     const audit = JSON.stringify({
       alternatives: [
@@ -866,7 +885,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
       explanation:
         "Reopened lanes, lower transit delay, and weakening rain remove the escalation basis.",
       newSeverity: 2,
-      recheckAfterSeconds: 15,
+      recheckAfterSeconds: 60,
     });
     const completion = JSON.stringify({
       decision: "complete",
@@ -914,7 +933,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
       status: "waiting",
     });
 
-    clock = new Date("2026-07-19T14:00:15.000Z");
+    clock = new Date("2026-07-19T14:01:00.000Z");
     operations.current = snapshot({
       affectedRoutes: ["801", "1"],
       blockedLanes: 2,
@@ -937,7 +956,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
     await lifecycle.processBatch();
     expect(operations.publishCalls).toBe(1);
 
-    clock = new Date("2026-07-19T14:00:30.000Z");
+    clock = new Date("2026-07-19T14:02:00.000Z");
     operations.current = snapshot({
       blockedLanes: 0,
       observedDurationMinutes: 40,
@@ -953,7 +972,7 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
       status: "waiting",
     });
 
-    clock = new Date("2026-07-19T14:00:45.000Z");
+    clock = new Date("2026-07-19T14:03:00.000Z");
     operations.current = snapshot({
       blockedLanes: 0,
       observedDurationMinutes: 40,
@@ -999,12 +1018,230 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
     });
     expect(repository.timeline.map((event) => event.message)).toEqual(
       expect.arrayContaining([
+        "Tool call proposed",
+        "Tool call security scan passed",
+        "Historical incidents retrieved",
+        "Transit routes checked",
+        "Weather amplification confirmed",
         "Plan version 2 created",
+        "Severity raised from 3 to 5",
         "Approved mission action resumed",
+        "Alert published in simulation",
+        "Conditions improved",
+        "Severity lowered from 5 to 2",
         "Plan version 3 created",
         "Plan version 4 created",
+        "Incident closed",
+        "Outcome recorded",
+        "Lesson stored",
         "Mission completed",
       ]),
     );
+  });
+
+  it("retries one transient mission-cycle failure without duplicating the mission", async () => {
+    const clock = new Date("2026-07-19T14:00:00.000Z");
+    const repository = new MemoryMissionRepository(() => clock);
+    const creation = await repository.createMission({
+      goal: "Recover bounded mission processing after a transient database failure.",
+      incidentId,
+      priority: 3,
+      triggerReason: { severityAtLeast3: true },
+    });
+    const missionId = creation.mission.id;
+    const plan = JSON.stringify({
+      assumptions: ["The retry reads the same persisted mission state."],
+      goal: "Recover bounded mission processing after a transient database failure.",
+      priority: 3,
+      recheckAfterSeconds: 60,
+      steps: [
+        {
+          arguments: { afterSeconds: 60, missionId },
+          order: 1,
+          rationale: "Schedule the next bounded observation after recovery.",
+          requiresFreshObservation: false,
+          tool: "schedule_incident_recheck",
+        },
+      ],
+      successCriteria: ["Transient failure does not duplicate mission state."],
+    });
+    const registry = createDefaultToolRegistry();
+    const planner = new MissionPlanner(new QueueModel([plan]), registry);
+    const provider = new FlakyProvider(snapshot(), 1);
+    const engine = new MissionExecutionEngine(
+      repository,
+      planner,
+      registry,
+      provider,
+      new LifecycleRunner(() => clock),
+      { now: () => clock },
+    );
+    const lifecycle = new MissionLifecycleCoordinator(
+      repository,
+      planner,
+      engine,
+      provider,
+      {
+        now: () => clock,
+        retryAttempts: 2,
+        retryDelayMs: 0,
+        workerId: "retry-worker",
+      },
+    );
+
+    await expect(lifecycle.processBatch()).resolves.toMatchObject({
+      claimed: 1,
+      failed: 0,
+      waiting: 1,
+    });
+    expect(provider.calls).toBe(2);
+    expect(await repository.getMission(missionId)).toMatchObject({
+      id: missionId,
+      status: "waiting",
+    });
+  });
+
+  it("fails safely after the bounded mission retry budget is exhausted", async () => {
+    const clock = new Date("2026-07-19T14:00:00.000Z");
+    const repository = new MemoryMissionRepository(() => clock);
+    const creation = await repository.createMission({
+      goal: "Stop mission processing after its bounded retry budget is exhausted.",
+      incidentId,
+      priority: 3,
+      triggerReason: { severityAtLeast3: true },
+    });
+    const registry = createDefaultToolRegistry();
+    const planner = new MissionPlanner(new QueueModel([]), registry);
+    const provider = new FlakyProvider(snapshot(), 3);
+    const engine = new MissionExecutionEngine(
+      repository,
+      planner,
+      registry,
+      provider,
+      new LifecycleRunner(() => clock),
+      { now: () => clock },
+    );
+    const lifecycle = new MissionLifecycleCoordinator(
+      repository,
+      planner,
+      engine,
+      provider,
+      {
+        now: () => clock,
+        retryAttempts: 2,
+        retryDelayMs: 0,
+        workerId: "retry-exhaustion-worker",
+      },
+    );
+
+    await expect(lifecycle.processBatch()).resolves.toMatchObject({
+      claimed: 1,
+      failed: 1,
+    });
+    expect(await repository.getMission(creation.mission.id)).toMatchObject({
+      failureReason: "Transient Supabase read failure",
+      status: "failed",
+    });
+    expect(repository.timeline.at(-1)).toMatchObject({
+      eventType: "mission_retry_budget_exhausted",
+    });
+  });
+
+  it("cancels an approved protected action if the incident resolves before resume", async () => {
+    const clock = new Date("2026-07-19T14:00:00.000Z");
+    const repository = new MemoryMissionRepository(() => clock);
+    const creation = await repository.createMission({
+      goal: "Publish only while the protected incident action remains necessary.",
+      incidentId,
+      priority: 5,
+      triggerReason: { severityAtLeast3: true },
+    });
+    const missionId = creation.mission.id;
+    const plan = JSON.stringify({
+      assumptions: ["The protected action is necessary only while active."],
+      goal: "Publish only while the protected incident action remains necessary.",
+      priority: 5,
+      recheckAfterSeconds: 60,
+      steps: [
+        {
+          arguments: { incidentId },
+          order: 1,
+          rationale: "Publish the targeted simulation only after approval.",
+          requiresFreshObservation: false,
+          tool: "publish_simulated_alert",
+        },
+        {
+          arguments: { afterSeconds: 60, missionId },
+          order: 2,
+          rationale: "Recheck conditions after protected publication.",
+          requiresFreshObservation: false,
+          tool: "schedule_incident_recheck",
+        },
+      ],
+      successCriteria: ["Resolved incidents cannot publish stale alerts."],
+    });
+    const audit = JSON.stringify({
+      alternatives: [
+        {
+          confidence: 0.8,
+          expectedBenefit: "Avoids unnecessary publication.",
+          expectedRisk: "Active riders might remain uninformed.",
+          name: "No action",
+          reversibility: "high",
+        },
+        {
+          confidence: 0.75,
+          expectedBenefit: "Waits for another live observation.",
+          expectedRisk: "A useful notice may arrive late.",
+          name: "Delayed action",
+          reversibility: "high",
+        },
+      ],
+      selectedAction: "Publish the targeted simulated alert",
+      selectionReason: "Active severity supports a bounded protected notice.",
+    });
+    const registry = createDefaultToolRegistry();
+    const planner = new MissionPlanner(new QueueModel([plan, audit]), registry);
+    const operations = new MockOperations();
+    const provider = new MutableProvider(snapshot({ severity: 5 }));
+    const runner = new SecureMissionToolRunner(
+      registry,
+      repository,
+      new ToolSecurityBoundary(new MockScanner()),
+      new OpenShellToolPolicy(),
+      operations,
+    );
+    const engine = new MissionExecutionEngine(
+      repository,
+      planner,
+      registry,
+      provider,
+      runner,
+      { now: () => clock },
+    );
+    const lifecycle = new MissionLifecycleCoordinator(
+      repository,
+      planner,
+      engine,
+      provider,
+      { now: () => clock, retryDelayMs: 0, workerId: "closure-worker" },
+    );
+
+    await lifecycle.processBatch();
+    const pending = repository.listToolExecutions(missionId)[0];
+    if (!pending) throw new Error("Protected action did not pause");
+    await repository.decideToolApproval(pending.id, "Austin Operator", true);
+    provider.current = snapshot({ severity: 1, status: "resolved" });
+
+    await lifecycle.processBatch();
+
+    expect(await repository.getMission(missionId)).toMatchObject({
+      failureReason: "Incident resolved before the protected action executed",
+      status: "cancelled",
+    });
+    expect(operations.publishCalls).toBe(0);
+    expect(repository.timeline.at(-1)).toMatchObject({
+      eventType: "mission_cancelled_incident_resolved",
+    });
   });
 });

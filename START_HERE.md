@@ -275,6 +275,7 @@ Without them, the UI still renders but reports that Supabase is not configured a
 - `CONTROL_ALLOWED_ORIGIN` matching the dashboard origin exactly.
 - `DEMO_SECRET` with at least 32 characters.
 - `DEMO_OPERATOR` for the scripted approval identity.
+- `INCIDENT_COMMANDER_DEMO_AUTO_APPROVE=false` when the mission replay should wait for the dashboard approval button.
 
 ### Optional Authentication Variables
 
@@ -285,7 +286,7 @@ Leave these empty only when the corresponding endpoint genuinely allows the work
 
 ### Safe Defaults
 
-The poll intervals, heartbeat interval, stale-job threshold, log level, worker ID, control host/port, public feed URLs, model names, and containment flags already have usable defaults in `.env.example`.
+The poll intervals, heartbeat interval, stale-job threshold, mission claim/concurrency/lease/lifetime/execution bounds, log level, worker ID, control host/port, public feed URLs, model names, and containment flags already have usable defaults in `.env.example`.
 
 ## Start the Project
 
@@ -355,6 +356,7 @@ With the full live configuration running:
 
 ```powershell
 pnpm demo:scenarios
+pnpm demo:incident-commander
 pnpm demo:containment
 pnpm demo:replay
 pnpm evaluate:learning
@@ -368,8 +370,11 @@ Expected scenario results:
 4. Prompt-injection content enters the security quarantine path.
 5. Exfiltration produces a runtime-policy finding.
 6. A critical alert waits for approval and is approved with `DEMO_OPERATOR`.
+7. The Incident Commander executes the North Lamar `24 → 43 → 40` minute closed-loop mission and stores its final lesson.
 
 Open `/security` to inspect findings and approvals, `/learning` to inspect memory effects, and `/dashboard` for the incident timeline.
+
+The deterministic Incident Commander command owns its mission loop and should run without a second worker claiming the same staged mission. For dashboard approval, set `INCIDENT_COMMANDER_DEMO_AUTO_APPROVE=false`; the command starts the bounded control endpoint and waits up to five minutes. See [`docs/INCIDENT_COMMANDER.md`](docs/INCIDENT_COMMANDER.md) for the exact setup and troubleshooting flow.
 
 ## Start with Docker Compose
 

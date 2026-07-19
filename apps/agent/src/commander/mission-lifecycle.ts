@@ -1,4 +1,4 @@
-import { mapBounded } from "@pulse-atx/shared";
+import { mapBounded, sleep } from "@pulse-atx/shared";
 
 import { createFingerprint } from "../lib/fingerprint.js";
 import type {
@@ -28,6 +28,8 @@ export interface MissionLifecycleOptions {
   concurrency?: number | undefined;
   leaseSeconds?: number | undefined;
   now?: (() => Date) | undefined;
+  retryAttempts?: number | undefined;
+  retryDelayMs?: number | undefined;
   workerId: string;
 }
 
@@ -45,6 +47,8 @@ export class MissionLifecycleCoordinator {
   private readonly concurrency: number;
   private readonly leaseSeconds: number;
   private readonly now: () => Date;
+  private readonly retryAttempts: number;
+  private readonly retryDelayMs: number;
 
   constructor(
     private readonly repository: MissionRuntimeRepository,
@@ -57,6 +61,11 @@ export class MissionLifecycleCoordinator {
     this.concurrency = Math.min(options.concurrency ?? 2, 4);
     this.leaseSeconds = Math.min(Math.max(options.leaseSeconds ?? 60, 15), 300);
     this.now = options.now ?? (() => new Date());
+    this.retryAttempts = Math.min(Math.max(options.retryAttempts ?? 2, 1), 3);
+    this.retryDelayMs = Math.min(
+      Math.max(options.retryDelayMs ?? 250, 0),
+      5_000,
+    );
   }
 
   async processBatch(signal?: AbortSignal): Promise<MissionBatchSummary> {
@@ -71,7 +80,7 @@ export class MissionLifecycleCoordinator {
       this.concurrency,
       async (mission) => {
         try {
-          return await this.processClaimedMission(mission, signal);
+          return await this.processClaimedMissionWithRetry(mission, signal);
         } finally {
           await this.repository.releaseClaim(mission.id, this.options.workerId);
         }
@@ -89,6 +98,52 @@ export class MissionLifecycleCoordinator {
         ["waiting", "waiting_approval"].includes(mission.status),
       ).length,
     };
+  }
+
+  private async processClaimedMissionWithRetry(
+    mission: MissionRecord,
+    signal?: AbortSignal,
+  ): Promise<MissionRecord> {
+    let failure: unknown;
+    for (let attempt = 1; attempt <= this.retryAttempts; attempt += 1) {
+      try {
+        return await this.processClaimedMission(mission, signal);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        failure = error;
+        if (attempt < this.retryAttempts) {
+          await sleep(this.retryDelayMs * attempt, signal);
+        }
+      }
+    }
+
+    const current = await this.repository.getMission(mission.id);
+    if (!current) {
+      throw failure instanceof Error
+        ? failure
+        : new Error("Mission processing failed after bounded retries");
+    }
+    if (["cancelled", "completed", "failed"].includes(current.status)) {
+      return current;
+    }
+    const reason =
+      failure instanceof Error
+        ? failure.message
+        : "Mission processing failed after bounded retries";
+    const failed = await this.repository.transitionMission(
+      current.id,
+      current.status,
+      "failed",
+      { completedAt: this.now().toISOString(), failureReason: reason },
+    );
+    await this.repository.appendTimeline({
+      eventType: "mission_retry_budget_exhausted",
+      incidentId: failed.incidentId,
+      message: "Mission failed after bounded retry exhaustion",
+      metadata: { attempts: this.retryAttempts, reason },
+      missionId: failed.id,
+    });
+    return failed;
   }
 
   private async discoverMissions(signal?: AbortSignal): Promise<number> {
@@ -125,6 +180,30 @@ export class MissionLifecycleCoordinator {
     signal?: AbortSignal,
   ): Promise<MissionRecord> {
     if (claimedMission.status === "waiting_approval") {
+      const snapshot = await this.contextProvider.getIncidentSnapshot(
+        claimedMission.incidentId,
+        signal,
+      );
+      if (snapshot.status === "resolved") {
+        const cancelled = await this.repository.transitionMission(
+          claimedMission.id,
+          "waiting_approval",
+          "cancelled",
+          {
+            completedAt: this.now().toISOString(),
+            failureReason:
+              "Incident resolved before the protected action executed",
+          },
+        );
+        await this.repository.appendTimeline({
+          eventType: "mission_cancelled_incident_resolved",
+          incidentId: cancelled.incidentId,
+          message: "Pending action cancelled because the incident resolved",
+          metadata: { wakeCycle: cancelled.wakeCycle },
+          missionId: cancelled.id,
+        });
+        return cancelled;
+      }
       const decision = await this.repository.getMissionApprovalDecision(
         claimedMission.id,
       );
@@ -209,13 +288,19 @@ export class MissionLifecycleCoordinator {
       missionId: mission.id,
     });
     if (changeSummary.meaningful) {
+      const improved =
+        changeSummary.severity.delta < 0 ||
+        changeSummary.blockedLanes.delta < 0 ||
+        changeSummary.transitDelayMinutes.delta < 0;
       await this.repository.appendTimeline({
         eventType: "mission_conditions_changed",
         incidentId: mission.incidentId,
         message:
           changeSummary.severity.delta > 0
             ? "Live conditions worsened"
-            : "Live conditions changed materially",
+            : improved
+              ? "Conditions improved"
+              : "Live conditions changed materially",
         metadata: { changeSummary, wakeCycle },
         missionId: mission.id,
       });
@@ -376,6 +461,7 @@ export class MissionLifecycleCoordinator {
     }
     if (revision.decision === "escalate") {
       const affectedRoutes = snapshot.affectedRoutes;
+      const impact = `${affectedRoutes.length} transit route(s) and ${snapshot.blockedLanes} blocked lane(s)`;
       const routeLabel = affectedRoutes.length
         ? affectedRoutes.join(", ")
         : "the affected corridor";
@@ -398,7 +484,7 @@ export class MissionLifecycleCoordinator {
         {
           arguments: {
             audience: "affected_routes",
-            impact: `${affectedRoutes.length} transit route(s) and ${snapshot.blockedLanes} blocked lane(s)`,
+            impact,
             incidentId: mission.incidentId,
             rationale: revision.explanation,
             summary: "Publish the revised targeted commuter disruption alert.",
@@ -409,7 +495,13 @@ export class MissionLifecycleCoordinator {
           tool: "request_human_approval",
         },
         {
-          arguments: { incidentId: mission.incidentId },
+          arguments: {
+            audience: "affected_routes",
+            impact,
+            incidentId: mission.incidentId,
+            rationale: revision.explanation,
+            summary: "Publish the revised targeted commuter disruption alert.",
+          },
           order: steps.length + 3,
           rationale:
             "Publish only after an operator approves the protected action.",

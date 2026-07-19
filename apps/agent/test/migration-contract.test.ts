@@ -231,4 +231,22 @@ describe("core schema migration", () => {
     expect(migration).toContain("'actual_duration_minutes', 40");
     expect(migration).toContain("to service_role");
   });
+
+  it("cancels orphaned approvals when incidents resolve", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607190004_incident_commander_hardening.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain(
+      "cancel_pending_missions_on_incident_resolution",
+    );
+    expect(migration).toContain("new.status = 'resolved'");
+    expect(migration).toContain("approval_status = 'rejected'");
+    expect(migration).toContain("mission.status <> 'waiting_approval'");
+    expect(migration).toContain("Operator approved action");
+  });
 });

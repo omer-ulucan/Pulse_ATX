@@ -22,6 +22,8 @@ The dashboard runs at `http://localhost:3000`. The persistent worker runs as a s
 
 For a live database and complete scenario run, follow [`docs/SETUP.md`](docs/SETUP.md) and [`docs/DEMO.md`](docs/DEMO.md). The full variable inventory is in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md), and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) diagrams the trust and data boundaries.
 
+The final autonomous mission runbook is [`docs/INCIDENT_COMMANDER.md`](docs/INCIDENT_COMMANDER.md).
+
 ## Workspace
 
 - `apps/web` — frontend-only Next.js dashboard
@@ -55,6 +57,18 @@ pnpm dev:agent
 ```
 
 On startup it recovers stale Postgres jobs, polls only due sources, persists source and agent health, and shuts down cleanly on `SIGINT` or `SIGTERM`. Open `/dashboard` for the reconnecting Supabase Realtime view and its Leaflet map using CARTO Dark Matter tiles with OpenStreetMap data.
+
+## Autonomous Incident Commander
+
+Qualifying incidents create one persistent mission with a bounded Nemotron plan, allowlisted tools, HiddenLayer scans, OpenShell policy checks, operator approval, scheduled re-observation, immutable plan revisions, counterfactual decision audits, and a final pgvector mission lesson. Mission leases and execution fingerprints recover safely after worker restart without duplicating protected actions.
+
+With local Supabase running and the root `.env` configured, open `/dashboard` and execute the full North Lamar story:
+
+```bash
+pnpm demo:incident-commander
+```
+
+The command validates the exact `24 → 43 → 40` minute outcome and streams each mission/step/observation/approval change through Supabase Realtime. See [`docs/INCIDENT_COMMANDER.md`](docs/INCIDENT_COMMANDER.md) for unattended and dashboard-approved modes.
 
 ## Nemotron through vLLM
 

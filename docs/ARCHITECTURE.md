@@ -50,3 +50,21 @@ sequenceDiagram
 - HTTP clients use timeouts and retries; the control server limits bodies to 16 KiB and enforces request/header timeouts.
 - `SIGINT` and `SIGTERM` stop polling, update health, append a timeline event, and close the control server.
 - HiddenLayer blocks malicious content; OpenShell enforces deny-by-default network/filesystem policy; operator approval guards high-impact alerts.
+
+## Autonomous mission lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> planning: qualifying incident
+  planning --> active: validated plan persisted
+  active --> waiting: bounded recheck scheduled
+  active --> waiting_approval: protected tool blocked
+  waiting_approval --> active: operator approved
+  waiting_approval --> cancelled: operator rejected / incident resolved
+  waiting --> active: due wake / meaningful update
+  active --> active: immutable plan revision
+  active --> completed: close + outcome + lesson
+  active --> failed: retry or lifetime budget exhausted
+```
+
+Each wake records a correlated incident snapshot and deterministic numeric/category deltas before Nemotron reviews the current plan. Plan versions are append-only. Every proposed tool passes Zod allowlist validation, HiddenLayer argument scanning, local OpenShell policy evaluation, approval enforcement, bounded execution, output validation, and HiddenLayer result scanning. Supabase Realtime streams missions, steps, observations, tool executions, and timeline evidence to the Incident Commander dashboard instrument.

@@ -48,6 +48,8 @@ pnpm dev:web
 
 Open `http://localhost:3000/dashboard`, `/learning`, and `/security`.
 
+For the full autonomous mission replay, configuration, operator-approval mode, and recovery behavior, follow [`INCIDENT_COMMANDER.md`](INCIDENT_COMMANDER.md).
+
 ## Containers
 
 Build and run the presentation service:

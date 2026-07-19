@@ -1,8 +1,8 @@
-import "dotenv/config";
-
 import { createHash, randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
 import { z } from "zod";
 
 import { MissionExecutionEngine } from "../apps/agent/src/commander/mission-engine.js";
@@ -16,6 +16,8 @@ import { SupabaseCommanderOperations } from "../apps/agent/src/commander/supabas
 import { SupabaseMissionRepository } from "../apps/agent/src/commander/supabase-mission-repository.js";
 import { createDefaultToolRegistry } from "../apps/agent/src/commander/tools/default-tools.js";
 import type { IncidentSnapshot } from "../apps/agent/src/commander/tools/types.js";
+import { DemoControlServer } from "../apps/agent/src/control/control-server.js";
+import { SupabaseDemoControlRepository } from "../apps/agent/src/control/demo-control-repository.js";
 import { SupabaseLearningRepository } from "../apps/agent/src/memory/learning-repository.js";
 import { MemoryService } from "../apps/agent/src/memory/memory-service.js";
 import type { ChatModel } from "../apps/agent/src/models/types.js";
@@ -24,10 +26,43 @@ import {
   type SecurityScanner,
 } from "../apps/agent/src/security/types.js";
 
-const EnvironmentSchema = z.object({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
-  SUPABASE_URL: z.url(),
+config({
+  path: fileURLToPath(new URL("../.env", import.meta.url)),
+  quiet: true,
 });
+
+const EnvironmentSchema = z
+  .object({
+    CONTROL_ALLOWED_ORIGIN: z.url().default("http://localhost:3000"),
+    CONTROL_SERVER_HOST: z.string().min(1).default("127.0.0.1"),
+    CONTROL_SERVER_PORT: z.coerce
+      .number()
+      .int()
+      .min(1_024)
+      .max(65_535)
+      .default(8_787),
+    DEMO_OPERATOR: z.string().trim().min(2).default("PulseATX Demo Operator"),
+    DEMO_SECRET: z.string().optional(),
+    INCIDENT_COMMANDER_DEMO_AUTO_APPROVE: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
+    SUPABASE_URL: z.url(),
+  })
+  .superRefine((value, context) => {
+    if (
+      !value.INCIDENT_COMMANDER_DEMO_AUTO_APPROVE &&
+      (!value.DEMO_SECRET || value.DEMO_SECRET.length < 32)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "DEMO_SECRET must contain at least 32 characters when manual approval is enabled",
+        path: ["DEMO_SECRET"],
+      });
+    }
+  });
 
 const DemoStageResultSchema = z.object({
   incidentId: z.uuid(),
@@ -111,7 +146,7 @@ class DemoNemotronModel implements ChatModel {
             explanation:
               "A second blocked lane and nine additional transit-delay minutes invalidate the initial impact assumptions.",
             newSeverity: 5,
-            recheckAfterSeconds: 15,
+            recheckAfterSeconds: 60,
           }),
         );
       }
@@ -122,7 +157,7 @@ class DemoNemotronModel implements ChatModel {
             explanation:
               "Reopened lanes, a two-minute transit delay, and weakening rain remove the escalation basis.",
             newSeverity: 2,
-            recheckAfterSeconds: 15,
+            recheckAfterSeconds: 60,
           }),
         );
       }
@@ -146,7 +181,7 @@ class DemoNemotronModel implements ChatModel {
         ],
         goal: "Minimize commuter disruption around North Lamar while monitoring for escalation.",
         priority: 3,
-        recheckAfterSeconds: 15,
+        recheckAfterSeconds: 60,
         steps: [
           {
             arguments: { incidentId: this.incidentId, limit: 6 },
@@ -186,7 +221,7 @@ class DemoNemotronModel implements ChatModel {
             tool: "create_alert_draft",
           },
           {
-            arguments: { afterSeconds: 15, missionId },
+            arguments: { afterSeconds: 60, missionId },
             order: 5,
             rationale:
               "Re-observe live conditions before taking higher-impact action.",
@@ -216,6 +251,33 @@ class AllowingHiddenLayerFixture implements SecurityScanner {
       stage,
     });
   }
+}
+
+async function waitForOperatorDecision(
+  client: SupabaseClient,
+  executionId: string,
+): Promise<"approved" | "rejected"> {
+  const expiresAt = Date.now() + 5 * 60_000;
+  while (Date.now() < expiresAt) {
+    const response = (await client
+      .from("agent_tool_executions")
+      .select("approval_status")
+      .eq("id", executionId)
+      .single()) as { data: unknown; error: { message: string } | null };
+    if (response.error) {
+      throw new Error(
+        `Approval status lookup failed: ${response.error.message}`,
+      );
+    }
+    const status = z
+      .object({
+        approval_status: z.enum(["approved", "pending", "rejected"]),
+      })
+      .parse(response.data).approval_status;
+    if (status === "approved" || status === "rejected") return status;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("Operator approval did not arrive within five minutes");
 }
 
 async function main(): Promise<void> {
@@ -320,11 +382,39 @@ async function main(): Promise<void> {
     "[4/8] Mission paused at the protected publication boundary.\n",
   );
 
-  await repository.decideToolApproval(
-    executionId,
-    "PulseATX Demo Operator",
-    true,
-  );
+  if (environment.INCIDENT_COMMANDER_DEMO_AUTO_APPROVE) {
+    await repository.decideToolApproval(
+      executionId,
+      environment.DEMO_OPERATOR,
+      true,
+    );
+  } else {
+    const controlServer = new DemoControlServer(
+      new SupabaseDemoControlRepository(client),
+      {
+        allowedOrigin: environment.CONTROL_ALLOWED_ORIGIN,
+        host: environment.CONTROL_SERVER_HOST,
+        port: environment.CONTROL_SERVER_PORT,
+        secret: environment.DEMO_SECRET ?? "",
+      },
+    );
+    const controlUrl = await controlServer.start();
+    process.stdout.write(
+      `      Waiting for dashboard approval through ${controlUrl} (five-minute limit).\n`,
+    );
+    let decision: "approved" | "rejected";
+    try {
+      decision = await waitForOperatorDecision(client, executionId);
+    } finally {
+      await controlServer.stop();
+    }
+    if (decision === "rejected") {
+      await lifecycle.processBatch();
+      throw new Error(
+        "Operator rejected the protected action; the mission was cancelled safely",
+      );
+    }
+  }
   await lifecycle.processBatch();
   process.stdout.write(
     "[5/8] Operator approval resumed the same mission and published the simulation.\n",

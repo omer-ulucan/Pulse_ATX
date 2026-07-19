@@ -267,7 +267,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
       fetchRows(
         config.url,
         config.anonKey,
-        "agent_timeline?select=id,incident_id,event_type,message,metadata,created_at&order=created_at.desc&limit=100",
+        "agent_timeline?select=id,incident_id,event_type,message,metadata,created_at&order=created_at.desc&limit=250",
         z.array(DashboardTimelineSchema),
       ),
       fetchRows(

@@ -17,6 +17,18 @@ Open `/dashboard`, `/learning`, and `/security`, then run:
 pnpm demo:scenarios
 ```
 
+## Autonomous Incident Commander
+
+The complete closed-loop judging story has its own one-command replay:
+
+```bash
+pnpm demo:incident-commander
+```
+
+It creates the North Lamar mission, executes the initial plan, advances a scheduled wake with live escalation, pauses at approval, publishes only after approval, observes recovery, de-escalates, closes the incident, records the three-minute prediction error, and stores a mission lesson. Keep `/dashboard` open to watch the Incident Commander panel update through Realtime.
+
+The default is unattended approval for a repeatable stage run. Set `INCIDENT_COMMANDER_DEMO_AUTO_APPROVE=false` to approve from the dashboard. Complete setup and credential details are in [`INCIDENT_COMMANDER.md`](INCIDENT_COMMANDER.md).
+
 ## Expected sequence
 
 1. **Benign traffic** creates an idempotent raw event and analysis job.

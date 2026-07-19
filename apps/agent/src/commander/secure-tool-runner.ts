@@ -146,6 +146,25 @@ export class SecureMissionToolRunner implements MissionToolRunner {
       securityStatus,
       toolName: call.tool,
     });
+    await this.repository.appendTimeline({
+      eventType: explicitSecurityBlock
+        ? "mission_tool_security_blocked"
+        : context.securityConfidence === "ambiguous"
+          ? "mission_tool_security_ambiguous"
+          : "mission_tool_security_passed",
+      incidentId: request.mission.incidentId,
+      message: explicitSecurityBlock
+        ? "Tool call security scan blocked"
+        : context.securityConfidence === "ambiguous"
+          ? "Tool call security scan requires operator review"
+          : "Tool call security scan passed",
+      metadata: {
+        securityStatus,
+        toolExecutionId: execution.id,
+        toolName: call.tool,
+      },
+      missionId: request.mission.id,
+    });
 
     if (explicitSecurityBlock) {
       if (execution.completedAt === null) {

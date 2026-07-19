@@ -251,7 +251,11 @@ export function createDefaultToolRegistry(): AgentToolRegistry {
     idempotencyStrategy: "alert_singleton",
     inputSchema: z.object({
       alertId: z.uuid().optional(),
+      audience: AudienceSchema.optional(),
+      impact: z.string().min(5).max(500).optional(),
       incidentId: z.uuid(),
+      rationale: z.string().min(5).max(1_000).optional(),
+      summary: z.string().min(5).max(500).optional(),
     }),
     name: "publish_simulated_alert",
     outputSchema: z.object({

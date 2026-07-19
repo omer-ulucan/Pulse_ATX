@@ -1,6 +1,6 @@
 # Current Phase
 
-Autonomous Incident Commander — agentic 6: deterministic demo and tests
+Autonomous Incident Commander — agentic 7: harden autonomous incident commander
 
 # Status
 
@@ -61,6 +61,15 @@ complete
 - Added deterministic OpenAI-compatible Nemotron and HiddenLayer fixtures for the replay command so judging produces the exact 24 → 43 → 40 minute story without external model variance; the persistent worker remains wired to the configured live vLLM and HiddenLayer adapters.
 - Extended observations with observed duration, preserved four immutable plan versions, and generated a final bounded completion plan that closes the incident, records the three-minute prediction error, and stores the full structured mission lesson through the existing pgvector memory pipeline.
 - Added a complete in-memory lifecycle test covering the exact four-stage scenario, protected action pause/resume, severity 3 → 5 → 2, plan versions 1 through 4, idempotent publication, successful outcome, and reusable mission lesson.
+- Added startup-validated mission claim, concurrency, lease, lifetime, and per-wake execution bounds and wired them into the production worker.
+- Added bounded mission-cycle retry with safe terminal failure after retry exhaustion, explicit stale-lease restart recovery coverage, and configurable maximum-lifetime enforcement.
+- Added a database trigger that atomically cancels pending missions, steps, and approvals when an incident resolves externally while preserving the normal completion plan's `close_incident` path.
+- Hardened approval decisions so stale or terminal mission actions cannot be approved and repeated decisions return the persisted database result rather than the caller's requested state.
+- Added precise mission timeline evidence for tool proposal, HiddenLayer security pass/block/review, historical retrieval, transit/weather checks, severity raise/lower, alert drafting/revision/publication, improved conditions, incident closure, outcome recording, lesson storage, and completion.
+- Carried action summary, audience, impact, and rationale through the strict protected-publish schema into the dashboard approval card; terminal missions no longer display stale approval controls.
+- Preserved up to 250 Realtime timeline rows for complete Incident Commander history while keeping the shared dispatch feed bounded to its latest 30 rows.
+- Added optional dashboard-driven approval to `pnpm demo:incident-commander`; unattended approval remains the deterministic default, while manual mode starts the bounded control endpoint and waits up to five minutes.
+- Added `docs/INCIDENT_COMMANDER.md` and updated README, setup, demo, environment, architecture, and Windows-first startup documentation with credentials, exact commands, bounds, safety behavior, and troubleshooting.
 
 # Verification Commands and Results
 
@@ -102,7 +111,11 @@ complete
 - Frontend palette audit — passed with only the eight locked hexadecimal colors and no green/mint replacement accent.
 - Agentic 6 targeted lifecycle verification: `pnpm --filter @pulse-atx/agent test -- mission-lifecycle.test.ts` passed 6 tests, including the full deterministic collision story.
 - Agentic 6 full verification: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed; 14 test files and 68 tests passed, the agent bundle built, and every Next.js route compiled.
-- The live `pnpm demo:incident-commander` database replay is implemented but was not executed locally because Docker Desktop's Linux engine remains stopped; its lifecycle is covered end-to-end by the deterministic in-memory test and its SQL by migration contract tests.
+- The live `pnpm demo:incident-commander` database replay is implemented but could not complete locally because Docker Desktop's Linux engine remains stopped; its lifecycle is covered end-to-end by the deterministic in-memory test and its SQL by migration contract tests.
+- Agentic 7 focused hardening verification: six test files and 41 tests passed for environment bounds, control decisions, Realtime payloads, mission planning/lifetime/restart recovery, retries, external closure, full lifecycle, and migration contracts.
+- Agentic 7 final verification: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed; 15 test files and 76 tests passed, the production worker bundle built, and every Next.js route compiled.
+- `docker version` confirmed the Docker client is installed but the `dockerDesktopLinuxEngine` pipe is absent.
+- `pnpm demo:incident-commander` started and reached stage 1, then failed with `Demo initial stage failed: TypeError: fetch failed` because local Supabase cannot run without that Docker engine; no code or credential validation failure occurred.
 
 # Missing Configuration
 
@@ -121,4 +134,4 @@ complete
 
 # Next Phase
 
-Autonomous Incident Commander — agentic 7: harden autonomous incident commander.
+All Autonomous Incident Commander phases are complete.
