@@ -59,7 +59,7 @@ export const DashboardMissionSchema = z.object({
   id: z.uuid(),
   incident_id: z.uuid(),
   next_wake_at: z.string().nullable(),
-  plan_version: z.number().int().min(1).max(3),
+  plan_version: z.number().int().min(1).max(4),
   priority: z.number().int().min(1).max(5),
   started_at: z.string(),
   status: z.enum([
@@ -98,7 +98,7 @@ export const DashboardMissionStepSchema = z.object({
   error: z.string().nullable(),
   id: z.uuid(),
   mission_id: z.uuid(),
-  plan_version: z.number().int().min(1).max(3),
+  plan_version: z.number().int().min(1).max(4),
   rationale: z.string().nullable(),
   result: z.unknown(),
   status: z.enum([
@@ -131,6 +131,12 @@ export const DashboardObservationSchema = z.object({
     correlatedFeedCount: z.number().int().nonnegative(),
     geographicSpreadKm: z.number().nonnegative(),
     incidentId: z.uuid(),
+    observedDurationMinutes: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(1_440)
+      .optional(),
     predictedDurationMinutes: z.number().int().nonnegative(),
     severity: z.number().int().min(1).max(5),
     status: z.string(),

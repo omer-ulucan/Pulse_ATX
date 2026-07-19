@@ -1127,6 +1127,10 @@ export type Database = {
         };
         Returns: string;
       };
+      run_incident_commander_demo_stage: {
+        Args: { p_nonce: string; p_stage: string };
+        Returns: Json;
+      };
       recover_stale_event_jobs: {
         Args: { p_max_attempts?: number; p_stale_before: string };
         Returns: number;

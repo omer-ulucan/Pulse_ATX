@@ -27,6 +27,7 @@ export const IncidentSnapshotSchema = z.object({
   correlatedFeedCount: z.number().int().nonnegative(),
   geographicSpreadKm: z.number().nonnegative(),
   incidentId: z.uuid(),
+  observedDurationMinutes: z.number().int().nonnegative().max(1_440).optional(),
   predictedDurationMinutes: z.number().int().nonnegative(),
   severity: z.number().int().min(1).max(5),
   status: z.enum([

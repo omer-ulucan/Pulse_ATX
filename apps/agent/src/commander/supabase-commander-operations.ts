@@ -163,6 +163,21 @@ function geographicSpread(rawEvents: z.infer<typeof RawEventSchema>[]): number {
   );
 }
 
+function observedDuration(
+  rawEvents: z.infer<typeof RawEventSchema>[],
+): number | null {
+  const duration = Math.max(
+    0,
+    ...rawEvents.map(
+      (event) =>
+        numericValue(event.payload.actual_duration_minutes) ??
+        numericValue(event.payload.observed_duration_minutes) ??
+        0,
+    ),
+  );
+  return duration > 0 ? Math.round(duration) : null;
+}
+
 function responseError(
   prefix: string,
   error: { message: string } | null,
@@ -201,6 +216,7 @@ export class SupabaseCommanderOperations
 
   async getIncidentSnapshot(incidentId: string): Promise<IncidentSnapshot> {
     const evidence = await this.getIncidentEvidence(incidentId);
+    const observedDurationMinutes = observedDuration(evidence.rawEvents);
     return {
       affectedRoutes: affectedRoutes(evidence.rawEvents),
       blockedLanes: blockedLanes(evidence.rawEvents),
@@ -210,6 +226,7 @@ export class SupabaseCommanderOperations
       ).size,
       geographicSpreadKm: geographicSpread(evidence.rawEvents),
       incidentId,
+      ...(observedDurationMinutes === null ? {} : { observedDurationMinutes }),
       predictedDurationMinutes:
         evidence.incident.predicted_duration_minutes ?? 0,
       severity: evidence.incident.severity ?? 1,

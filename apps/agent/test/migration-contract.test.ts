@@ -198,11 +198,37 @@ describe("core schema migration", () => {
     expect(migration).toContain("claim_agent_missions");
     expect(migration).toContain("for update skip locked");
     expect(migration).toContain("persist_agent_mission_plan");
+    expect(migration).toContain("p_plan_version not between 1 and 4");
     expect(migration).toContain("begin_agent_tool_execution");
     expect(migration).toContain(
       "on conflict (mission_id, tool_name, arguments_fingerprint)",
     );
     expect(migration).toContain("decide_agent_tool_approval");
     expect(migration).toContain("approval_status in ('approved', 'rejected')");
+  });
+
+  it("defines the staged Incident Commander replay and meaningful-update wake", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607190003_incident_commander_demo.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("plan_version between 1 and 4");
+    expect(migration).toContain("advance_waiting_mission_on_incident_update");
+    expect(migration).toContain("run_incident_commander_demo_stage");
+    expect(migration).toContain("timeline.metadata->>'nonce' = p_nonce::text");
+    expect(migration).toContain(
+      "p_stage not in ('initial', 'escalation', 'recovery', 'final')",
+    );
+    expect(migration).toContain("'austin_traffic'");
+    expect(migration).toContain("'capmetro'");
+    expect(migration).toContain("'noaa_weather'");
+    expect(migration).toContain("'transit_delay_minutes', 14");
+    expect(migration).toContain("predicted_duration_minutes = 43");
+    expect(migration).toContain("'actual_duration_minutes', 40");
+    expect(migration).toContain("to service_role");
   });
 });

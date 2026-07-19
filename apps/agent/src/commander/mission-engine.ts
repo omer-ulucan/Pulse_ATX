@@ -394,6 +394,15 @@ export class MissionExecutionEngine {
             : null,
       },
     );
+    if (finalStatus === "completed") {
+      await this.repository.appendTimeline({
+        eventType: "mission_completed",
+        incidentId: mission.incidentId,
+        message: "Mission completed",
+        metadata: { planVersion: mission.planVersion },
+        missionId: mission.id,
+      });
+    }
     return { executions, mission };
   }
 

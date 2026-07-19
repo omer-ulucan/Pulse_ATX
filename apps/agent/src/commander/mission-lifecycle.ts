@@ -261,12 +261,31 @@ export class MissionLifecycleCoordinator {
       );
     }
     if (revision.decision === "complete") {
-      return this.repository.transitionMission(
-        mission.id,
-        "active",
-        "completed",
-        { completedAt: this.now().toISOString() },
+      if (mission.planVersion >= 4) {
+        return this.repository.transitionMission(
+          mission.id,
+          "active",
+          "failed",
+          {
+            completedAt: this.now().toISOString(),
+            failureReason:
+              "Mission reached completion without room for required outcome tools",
+          },
+        );
+      }
+      const completionPlan = await this.completionPlan(
+        activeMission,
+        currentSnapshot,
       );
+      activeMission = await this.repository.persistPlan({
+        missionId: mission.id,
+        plan: completionPlan,
+        planVersion: mission.planVersion + 1,
+        usedFallback: revisionResult.usedFallback,
+        validationFailures: revisionResult.validationFailures,
+      });
+      return (await this.engine.processMission(activeMission.id, signal))
+        .mission;
     }
 
     if (revision.decision === "continue" || !changeSummary.meaningful) {
@@ -284,7 +303,7 @@ export class MissionLifecycleCoordinator {
       );
     }
 
-    if (mission.planVersion >= 3) {
+    if (mission.planVersion >= 4) {
       await this.repository.appendTimeline({
         eventType: "mission_revision_limit_reached",
         incidentId: mission.incidentId,
@@ -340,7 +359,8 @@ export class MissionLifecycleCoordinator {
     const steps: MissionPlan["steps"] = [];
     if (
       targetSeverity !== snapshot.severity ||
-      revision.decision === "escalate"
+      revision.decision === "escalate" ||
+      revision.decision === "deescalate"
     ) {
       steps.push({
         arguments: {
@@ -426,4 +446,141 @@ export class MissionLifecycleCoordinator {
       successCriteria: mission.successCriteria,
     });
   }
+
+  private async completionPlan(
+    mission: MissionRecord,
+    snapshot: IncidentSnapshot,
+  ): Promise<MissionPlan> {
+    const observations = await this.repository.listObservations(mission.id);
+    const versionedSteps = (
+      await Promise.all(
+        Array.from({ length: mission.planVersion }, (_, index) =>
+          this.repository.listSteps(mission.id, index + 1),
+        ),
+      )
+    ).flat();
+    const initialObservation = observations[0]?.stateSnapshot ?? snapshot;
+    const peakSeverity = Math.max(
+      snapshot.severity,
+      ...observations.map((observation) => observation.stateSnapshot.severity),
+    );
+    const peakPrediction = Math.max(
+      snapshot.predictedDurationMinutes,
+      ...observations.map(
+        (observation) => observation.stateSnapshot.predictedDurationMinutes,
+      ),
+    );
+    const actualDuration = snapshot.observedDurationMinutes ?? peakPrediction;
+    const predictionError = Math.abs(peakPrediction - actualDuration);
+    const toolsUsed = [
+      ...new Set([
+        ...versionedSteps.map((step) => step.toolName),
+        "close_incident" as const,
+        "record_incident_outcome" as const,
+        "store_incident_lesson" as const,
+      ]),
+    ];
+    const initialPlan = versionedSteps
+      .filter((step) => step.planVersion === 1)
+      .sort((left, right) => left.stepOrder - right.stepOrder)
+      .map((step) => toolLabelsForMemory(step.toolName));
+    const planRevisions = Array.from(
+      { length: mission.planVersion },
+      (_, index) =>
+        `Plan version ${index + 2} responded to wake-cycle evidence.`,
+    );
+    const lesson = {
+      actualOutcome: {
+        actualDurationMinutes: actualDuration,
+        finalSeverity: snapshot.severity,
+        status: "resolved",
+      },
+      approvalBoundaries: [
+        "Operator approval before simulated public alert publication",
+      ],
+      approvalLesson:
+        "A targeted route alert was sufficient; broader publication was not justified.",
+      finalPredictionError: predictionError,
+      initialPlan,
+      pattern: "rain_amplified_lane_blocking_collision_near_rapid_transit",
+      planRevisions,
+      predictedOutcome: {
+        escalatedDurationMinutes: peakPrediction,
+        initialDurationMinutes: initialObservation.predictedDurationMinutes,
+        peakSeverity,
+      },
+      predictionLesson:
+        "Transit delay growth was a stronger duration signal than initial traffic severity.",
+      recommendedResponsePattern:
+        "Check route impact early, draft a targeted alert, and recheck within one minute before publication.",
+      successfulActions: [
+        "early route impact check",
+        "targeted alert draft",
+        "bounded live rechecks",
+        "operator-approved simulated publication",
+      ],
+      timingLesson:
+        "Escalation became visible within one scheduled recheck cycle.",
+      toolsUsed,
+      triggerConditions: {
+        blockedLanes: initialObservation.blockedLanes,
+        correlatedFeedCount: initialObservation.correlatedFeedCount,
+        severity: initialObservation.severity,
+        transitDelayMinutes: initialObservation.transitDelayMinutes,
+        weather: initialObservation.weatherSeverity,
+      },
+      unnecessaryActions: ["citywide alert"],
+    };
+    return MissionPlanSchema.parse({
+      assumptions: mission.assumptions,
+      goal: mission.goal,
+      priority: snapshot.severity,
+      recheckAfterSeconds: 60,
+      steps: [
+        {
+          arguments: {
+            incidentId: mission.incidentId,
+            resolution:
+              "Final live observation confirmed reopened lanes, lower transit delay, and weakened rain.",
+          },
+          order: 1,
+          rationale: "Close only after the final recovery observation.",
+          requiresFreshObservation: false,
+          tool: "close_incident",
+        },
+        {
+          arguments: {
+            actualDurationMinutes: actualDuration,
+            incidentId: mission.incidentId,
+            observedSeverity: peakSeverity,
+            outcome: {
+              finalPredictionError: predictionError,
+              outcome: "successful",
+              peakPredictionMinutes: peakPrediction,
+            },
+          },
+          order: 2,
+          rationale: "Persist observed duration and final prediction error.",
+          requiresFreshObservation: false,
+          tool: "record_incident_outcome",
+        },
+        {
+          arguments: {
+            incidentId: mission.incidentId,
+            lesson,
+            missionId: mission.id,
+          },
+          order: 3,
+          rationale: "Embed the reusable response pattern for future missions.",
+          requiresFreshObservation: false,
+          tool: "store_incident_lesson",
+        },
+      ],
+      successCriteria: mission.successCriteria,
+    });
+  }
+}
+
+function toolLabelsForMemory(toolName: string): string {
+  return toolName.replaceAll("_", " ");
 }

@@ -122,6 +122,15 @@ export class MemoryMissionRepository implements MissionRuntimeRepository {
     );
   }
 
+  listObservations(missionId: string): Promise<MissionObservationRecord[]> {
+    return Promise.resolve(
+      [...this.observations.values()]
+        .filter((observation) => observation.missionId === missionId)
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+        .map(copy),
+    );
+  }
+
   listToolExecutions(missionId: string): ToolExecutionRecord[] {
     return [...this.executions.values()]
       .filter((execution) => execution.missionId === missionId)
@@ -145,7 +154,7 @@ export class MemoryMissionRepository implements MissionRuntimeRepository {
         `Mission ${mission.id} cannot persist a plan while ${mission.status}`,
       );
     }
-    if (input.planVersion < 1 || input.planVersion > 3) {
+    if (input.planVersion < 1 || input.planVersion > 4) {
       throw new Error("Mission plan version exceeds the bounded range");
     }
     if (

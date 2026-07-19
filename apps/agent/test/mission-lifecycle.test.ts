@@ -225,6 +225,137 @@ class MockOperations implements ToolOperations {
   }
 }
 
+class ScenarioOperations implements ToolOperations, MissionCandidateProvider {
+  alertId = randomUUID();
+  alertStatus: "approved" | "draft" | "pending_approval" | "published" =
+    "draft";
+  lessonInput: Parameters<ToolOperations["storeIncidentLesson"]>[0] | null =
+    null;
+  outcomeInput: Parameters<ToolOperations["recordIncidentOutcome"]>[0] | null =
+    null;
+  publishCalls = 0;
+  severityChanges: number[] = [];
+
+  constructor(
+    public current: IncidentSnapshot,
+    private readonly now: () => Date,
+  ) {}
+
+  cancelPendingAction() {
+    return Promise.resolve({ cancelled: true });
+  }
+  checkWeatherConditions() {
+    return Promise.resolve({
+      amplification:
+        this.current.weatherSeverity === "heavy_rain"
+          ? ("high" as const)
+          : ("moderate" as const),
+      observedAt: this.current.updatedAt,
+      precipitation:
+        this.current.weatherSeverity === "heavy_rain"
+          ? ("heavy" as const)
+          : ("light" as const),
+      summary: "Correlated weather evidence reflects the current wake cycle.",
+    });
+  }
+  closeIncident(input: { incidentId: string }) {
+    return Promise.resolve({
+      closedAt: this.now().toISOString(),
+      incidentId: input.incidentId,
+      status: "resolved" as const,
+    });
+  }
+  createAlertDraft(input: {
+    audience: "affected_routes" | "city_operators" | "citywide";
+  }) {
+    this.alertStatus = "draft";
+    return Promise.resolve({
+      alertId: this.alertId,
+      audience: input.audience,
+      requiresApproval: false,
+      status: "draft" as const,
+    });
+  }
+  findAffectedTransitRoutes() {
+    return Promise.resolve(
+      this.current.affectedRoutes.map((routeId) => ({
+        delayMinutes: this.current.transitDelayMinutes,
+        major: routeId === "801" || routeId === "1",
+        routeId,
+        routeName: routeId === "801" ? "Rapid 801" : `Route ${routeId}`,
+      })),
+    );
+  }
+  getIncidentSnapshot() {
+    return Promise.resolve(this.current);
+  }
+  getRelevantLessons() {
+    return Promise.resolve([]);
+  }
+  listMissionCandidates() {
+    return Promise.resolve([]);
+  }
+  publishSimulatedAlert() {
+    this.publishCalls += 1;
+    this.alertStatus = "published";
+    return Promise.resolve({
+      alertId: this.alertId,
+      channel: "dashboard_simulation" as const,
+      publishedAt: this.now().toISOString(),
+    });
+  }
+  recordIncidentOutcome(
+    input: Parameters<ToolOperations["recordIncidentOutcome"]>[0],
+  ) {
+    this.outcomeInput = input;
+    return Promise.resolve({ outcomeId: randomUUID() });
+  }
+  requestHumanApproval() {
+    this.alertStatus = "pending_approval";
+    return Promise.resolve({
+      alertId: this.alertId,
+      status: "pending_approval" as const,
+    });
+  }
+  retrieveSimilarIncidents() {
+    return Promise.resolve([]);
+  }
+  reviseAlertDraft(input: {
+    audience: "affected_routes" | "city_operators" | "citywide";
+  }) {
+    this.alertStatus = "draft";
+    return Promise.resolve({
+      alertId: this.alertId,
+      audience: input.audience,
+      requiresApproval: true,
+      status: "draft" as const,
+    });
+  }
+  scheduleIncidentRecheck(input: { afterSeconds: number; missionId: string }) {
+    return Promise.resolve({
+      missionId: input.missionId,
+      nextWakeAt: new Date(
+        this.now().getTime() + input.afterSeconds * 1_000,
+      ).toISOString(),
+    });
+  }
+  storeIncidentLesson(
+    input: Parameters<ToolOperations["storeIncidentLesson"]>[0],
+  ) {
+    this.lessonInput = input;
+    return Promise.resolve({ memoryId: randomUUID() });
+  }
+  updateIncidentSeverity(input: { incidentId: string; severity: number }) {
+    const previousSeverity = this.severityChanges.at(-1) ?? 3;
+    this.severityChanges.push(input.severity);
+    return Promise.resolve({
+      incidentId: input.incidentId,
+      previousSeverity,
+      severity: input.severity,
+    });
+  }
+}
+
 async function createPersistedMission(
   repository: MemoryMissionRepository,
   tool: "get_incident_snapshot" | "publish_simulated_alert",
@@ -630,5 +761,250 @@ describe("Autonomous Incident Commander approval and re-observation", () => {
       revision: { decision: "deescalate", newSeverity: 2 },
       usedFallback: true,
     });
+  });
+
+  it("runs the deterministic collision story through outcome and mission memory", async () => {
+    let clock = new Date("2026-07-19T14:00:00.000Z");
+    const now = () => clock;
+    const repository = new MemoryMissionRepository(now);
+    const creation = await repository.createMission({
+      goal: "Minimize commuter disruption around North Lamar while monitoring for escalation.",
+      incidentId,
+      priority: 3,
+      triggerReason: {
+        correlatedFeeds: true,
+        predictedDurationOver20: true,
+        severityAtLeast3: true,
+      },
+    });
+    const missionId = creation.mission.id;
+    const initialPlan = JSON.stringify({
+      assumptions: ["Traffic, transit, and weather feeds are correlated."],
+      goal: "Minimize commuter disruption around North Lamar while monitoring for escalation.",
+      priority: 3,
+      recheckAfterSeconds: 15,
+      steps: [
+        {
+          arguments: { incidentId, limit: 6 },
+          order: 1,
+          rationale: "Retrieve comparable completed incidents.",
+          requiresFreshObservation: false,
+          tool: "retrieve_similar_incidents",
+        },
+        {
+          arguments: { incidentId },
+          order: 2,
+          rationale: "Check the affected rapid transit route.",
+          requiresFreshObservation: false,
+          tool: "find_affected_transit_routes",
+        },
+        {
+          arguments: { incidentId },
+          order: 3,
+          rationale: "Confirm heavy-rain amplification.",
+          requiresFreshObservation: false,
+          tool: "check_weather_conditions",
+        },
+        {
+          arguments: {
+            affectedRoutes: ["801"],
+            audience: "affected_routes",
+            incidentId,
+            message:
+              "Route 801 riders should prepare for North Lamar disruption while one lane remains blocked.",
+            severity: 3,
+            title: "North Lamar disruption under monitoring",
+          },
+          order: 4,
+          rationale: "Prepare a targeted commuter alert draft.",
+          requiresFreshObservation: false,
+          tool: "create_alert_draft",
+        },
+        {
+          arguments: { afterSeconds: 15, missionId },
+          order: 5,
+          rationale: "Recheck live conditions before protected action.",
+          requiresFreshObservation: false,
+          tool: "schedule_incident_recheck",
+        },
+      ],
+      successCriteria: [
+        "Protected publication requires operator approval.",
+        "The incident closes only after sustained recovery.",
+      ],
+    });
+    const escalation = JSON.stringify({
+      decision: "escalate",
+      explanation:
+        "A second blocked lane and nine additional transit-delay minutes invalidate the initial assumptions.",
+      newSeverity: 5,
+      recheckAfterSeconds: 15,
+    });
+    const audit = JSON.stringify({
+      alternatives: [
+        {
+          confidence: 0.9,
+          expectedBenefit: "Avoids unnecessary notification.",
+          expectedRisk: "Route 801 riders receive no warning.",
+          name: "No action",
+          reversibility: "high",
+        },
+        {
+          confidence: 0.78,
+          expectedBenefit: "Adds one more observation.",
+          expectedRisk: "A useful alert arrives late.",
+          name: "Delayed action",
+          reversibility: "high",
+        },
+      ],
+      selectedAction: "Publish targeted Route 801 commuter alert",
+      selectionReason:
+        "Two blocked lanes and a fourteen-minute delay justify targeted notice after approval.",
+    });
+    const deescalation = JSON.stringify({
+      decision: "deescalate",
+      explanation:
+        "Reopened lanes, lower transit delay, and weakening rain remove the escalation basis.",
+      newSeverity: 2,
+      recheckAfterSeconds: 15,
+    });
+    const completion = JSON.stringify({
+      decision: "complete",
+      explanation:
+        "A final observation confirms sustained lane and transit recovery.",
+    });
+    const registry = createDefaultToolRegistry();
+    const planner = new MissionPlanner(
+      new QueueModel([
+        initialPlan,
+        escalation,
+        audit,
+        deescalation,
+        completion,
+      ]),
+      registry,
+    );
+    const operations = new ScenarioOperations(snapshot(), now);
+    const runner = new SecureMissionToolRunner(
+      registry,
+      repository,
+      new ToolSecurityBoundary(new MockScanner()),
+      new OpenShellToolPolicy(),
+      operations,
+    );
+    const engine = new MissionExecutionEngine(
+      repository,
+      planner,
+      registry,
+      operations,
+      runner,
+      { now },
+    );
+    const lifecycle = new MissionLifecycleCoordinator(
+      repository,
+      planner,
+      engine,
+      operations,
+      { now, workerId: "full-demo-worker" },
+    );
+
+    await lifecycle.processBatch();
+    expect(await repository.getMission(missionId)).toMatchObject({
+      planVersion: 1,
+      status: "waiting",
+    });
+
+    clock = new Date("2026-07-19T14:00:15.000Z");
+    operations.current = snapshot({
+      affectedRoutes: ["801", "1"],
+      blockedLanes: 2,
+      predictedDurationMinutes: 43,
+      severity: 5,
+      transitDelayMinutes: 14,
+      updatedAt: clock.toISOString(),
+    });
+    await lifecycle.processBatch();
+    expect(await repository.getMission(missionId)).toMatchObject({
+      planVersion: 2,
+      status: "waiting_approval",
+    });
+    const pending = repository
+      .listToolExecutions(missionId)
+      .find((execution) => execution.approvalStatus === "pending");
+    if (!pending)
+      throw new Error("Scenario approval boundary was not persisted");
+    await repository.decideToolApproval(pending.id, "Austin Operator", true);
+    await lifecycle.processBatch();
+    expect(operations.publishCalls).toBe(1);
+
+    clock = new Date("2026-07-19T14:00:30.000Z");
+    operations.current = snapshot({
+      blockedLanes: 0,
+      observedDurationMinutes: 40,
+      predictedDurationMinutes: 43,
+      severity: 2,
+      transitDelayMinutes: 2,
+      updatedAt: clock.toISOString(),
+      weatherSeverity: "light_rain",
+    });
+    await lifecycle.processBatch();
+    expect(await repository.getMission(missionId)).toMatchObject({
+      planVersion: 3,
+      status: "waiting",
+    });
+
+    clock = new Date("2026-07-19T14:00:45.000Z");
+    operations.current = snapshot({
+      blockedLanes: 0,
+      observedDurationMinutes: 40,
+      predictedDurationMinutes: 43,
+      severity: 2,
+      transitDelayMinutes: 1,
+      updatedAt: clock.toISOString(),
+      weatherSeverity: "light_rain",
+    });
+    await lifecycle.processBatch();
+
+    expect(await repository.getMission(missionId)).toMatchObject({
+      planVersion: 4,
+      status: "completed",
+      wakeCycle: 3,
+    });
+    expect(await repository.listSteps(missionId, 1)).toHaveLength(5);
+    expect(await repository.listSteps(missionId, 2)).toHaveLength(5);
+    expect(await repository.listSteps(missionId, 3)).toHaveLength(3);
+    expect(await repository.listSteps(missionId, 4)).toHaveLength(3);
+    expect(operations.severityChanges).toEqual([5, 2]);
+    expect(operations.alertStatus).toBe("published");
+    expect(operations.outcomeInput).toMatchObject({
+      actualDurationMinutes: 40,
+      observedSeverity: 5,
+      outcome: {
+        finalPredictionError: 3,
+        outcome: "successful",
+        peakPredictionMinutes: 43,
+      },
+    });
+    expect(operations.lessonInput).toMatchObject({
+      lesson: {
+        finalPredictionError: 3,
+        pattern: "rain_amplified_lane_blocking_collision_near_rapid_transit",
+        predictedOutcome: {
+          escalatedDurationMinutes: 43,
+          initialDurationMinutes: 24,
+          peakSeverity: 5,
+        },
+      },
+      missionId,
+    });
+    expect(repository.timeline.map((event) => event.message)).toEqual(
+      expect.arrayContaining([
+        "Plan version 2 created",
+        "Approved mission action resumed",
+        "Plan version 3 created",
+        "Plan version 4 created",
+        "Mission completed",
+      ]),
+    );
   });
 });

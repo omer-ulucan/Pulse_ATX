@@ -44,7 +44,7 @@ export class MemoryService {
   constructor(
     private readonly embeddings: EmbeddingProvider,
     private readonly repository: LearningRepository,
-    private readonly lessons: LessonExtractor,
+    private readonly lessons?: LessonExtractor,
   ) {}
 
   async retrieveForEvent(
@@ -74,6 +74,7 @@ export class MemoryService {
   }
 
   async consolidateCompleted(limit = 4, signal?: AbortSignal): Promise<number> {
+    if (!this.lessons) return 0;
     const candidates = await this.repository.listMemoryCandidates(limit);
     for (const candidate of candidates) {
       const lesson: IncidentLesson = await this.lessons.extract(

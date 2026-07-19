@@ -124,6 +124,7 @@ export interface MissionRepository {
     missionId: string,
     planVersion: number,
   ): Promise<MissionStepRecord[]>;
+  listObservations(missionId: string): Promise<MissionObservationRecord[]>;
   markStepRunning(stepId: string): Promise<MissionStepRecord>;
   getLatestObservation(
     missionId: string,

@@ -33,7 +33,7 @@ const MissionRowSchema = z.object({
   id: z.uuid(),
   incident_id: z.uuid(),
   next_wake_at: z.string().nullable(),
-  plan_version: z.number().int().min(1).max(3),
+  plan_version: z.number().int().min(1).max(4),
   priority: z.number().int().min(1).max(5),
   started_at: z.string(),
   status: MissionStatusSchema,
@@ -49,7 +49,7 @@ const StepRowSchema = z.object({
   error: z.string().nullable(),
   id: z.uuid(),
   mission_id: z.uuid(),
-  plan_version: z.number().int().min(1).max(3),
+  plan_version: z.number().int().min(1).max(4),
   rationale: z.string().nullable(),
   requires_fresh_observation: z.boolean(),
   result: z.unknown(),
@@ -241,6 +241,24 @@ export class SupabaseMissionRepository implements MissionRuntimeRepository {
     };
     responseError("Mission step lookup failed", response.error);
     return z.array(StepRowSchema).parse(response.data).map(stepFromRow);
+  }
+
+  async listObservations(
+    missionId: string,
+  ): Promise<MissionObservationRecord[]> {
+    const response = (await this.client
+      .from("agent_observations")
+      .select("*")
+      .eq("mission_id", missionId)
+      .order("created_at")) as {
+      data: unknown;
+      error: { message: string } | null;
+    };
+    responseError("Mission observation history lookup failed", response.error);
+    return z
+      .array(ObservationRowSchema)
+      .parse(response.data)
+      .map(observationFromRow);
   }
 
   async markStepRunning(stepId: string): Promise<MissionStepRecord> {

@@ -1,6 +1,6 @@
 # Current Phase
 
-Autonomous Incident Commander — agentic 5: incident commander dashboard
+Autonomous Incident Commander — agentic 6: deterministic demo and tests
 
 # Status
 
@@ -44,7 +44,7 @@ complete
 - Added the production Supabase mission repository and correlated traffic/transit/weather operations adapter; live snapshots deterministically derive severity, blocked lanes, route delay, affected routes, feed count, weather amplification, duration, confidence, and spread from persisted incident evidence.
 - Added the full code-enforced tool pipeline: Zod allowlist/argument validation, HiddenLayer call scanning, local OpenShell policy evaluation, approval enforcement, execution persistence, output validation, HiddenLayer result scanning, and idempotent result replay.
 - Added fail-closed HiddenLayer blocks, approval-on-ambiguous-security behavior, protected-publication boundaries, operator rejection cancellation, and same-mission resumption only after an approved execution record is observed.
-- Added heartbeat-driven mission discovery, bounded concurrent claims, startup/stale-lease recovery, automatic due wakes, fresh observation persistence, deterministic state comparison, Nemotron revision decisions, three-version enforcement, and immutable prior plan history.
+- Added heartbeat-driven mission discovery, bounded concurrent claims, startup/stale-lease recovery, automatic due wakes, fresh observation persistence, deterministic state comparison, Nemotron revision decisions, three-revision/four-version enforcement, and immutable prior plan history.
 - Added deterministic escalation and de-escalation replacement plans, including severity changes, alert revision, explicit approval request, simulated publication, cancellation of stale actions, and another bounded recheck.
 - Wired the Autonomous Incident Commander into the persistent worker after live ingestion/analysis and before recursive memory consolidation; mission batch telemetry is now included in worker health metadata.
 - Extended the existing recursive memory pipeline to embed and store structured mission lessons with mission metadata and retrieval-compatible incident conditions.
@@ -56,6 +56,11 @@ complete
 - Extended server-side dashboard snapshots and Supabase Realtime handling for missions, mission steps, observations, tool executions, and mission-scoped timeline metadata.
 - Added an authenticated mission-tool approval/rejection control endpoint; the browser accepts an operator-entered secret without exposing service-role credentials or bundling the control secret.
 - Added Zod tests for all four mission Realtime payload shapes and protected control tests for both approve and reject decisions.
+- Added an idempotent four-stage North Lamar replay migration with real Austin traffic, CapMetro Route 801, and NOAA weather-shaped records; meaningful incident updates now advance waiting missions immediately.
+- Added the one-command `pnpm demo:incident-commander` runner, which drives mission creation, bounded planning, tool execution, escalation, approval resume, simulated publication, de-escalation, closure, outcome recording, and mission-memory storage through the production Supabase repositories and execution engine.
+- Added deterministic OpenAI-compatible Nemotron and HiddenLayer fixtures for the replay command so judging produces the exact 24 → 43 → 40 minute story without external model variance; the persistent worker remains wired to the configured live vLLM and HiddenLayer adapters.
+- Extended observations with observed duration, preserved four immutable plan versions, and generated a final bounded completion plan that closes the incident, records the three-minute prediction error, and stores the full structured mission lesson through the existing pgvector memory pipeline.
+- Added a complete in-memory lifecycle test covering the exact four-stage scenario, protected action pause/resume, severity 3 → 5 → 2, plan versions 1 through 4, idempotent publication, successful outcome, and reusable mission lesson.
 
 # Verification Commands and Results
 
@@ -95,6 +100,9 @@ complete
 - Agentic 5 `pnpm format:check`, `pnpm typecheck`, and `pnpm lint` — passed across the workspace with zero warnings.
 - Agentic 5 `pnpm build` — passed for the bundled persistent worker and the Next.js production dashboard; all application routes compiled successfully.
 - Frontend palette audit — passed with only the eight locked hexadecimal colors and no green/mint replacement accent.
+- Agentic 6 targeted lifecycle verification: `pnpm --filter @pulse-atx/agent test -- mission-lifecycle.test.ts` passed 6 tests, including the full deterministic collision story.
+- Agentic 6 full verification: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed; 14 test files and 68 tests passed, the agent bundle built, and every Next.js route compiled.
+- The live `pnpm demo:incident-commander` database replay is implemented but was not executed locally because Docker Desktop's Linux engine remains stopped; its lifecycle is covered end-to-end by the deterministic in-memory test and its SQL by migration contract tests.
 
 # Missing Configuration
 
@@ -113,4 +121,4 @@ complete
 
 # Next Phase
 
-Autonomous Incident Commander — agentic 6: deterministic demo and tests.
+Autonomous Incident Commander — agentic 7: harden autonomous incident commander.

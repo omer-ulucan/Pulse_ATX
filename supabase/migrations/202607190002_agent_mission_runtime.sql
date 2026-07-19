@@ -146,7 +146,7 @@ begin
   if mission.status not in ('planning', 'active') then
     raise exception 'mission % cannot persist a plan while %', p_mission_id, mission.status;
   end if;
-  if p_plan_version not between 1 and 3 then raise exception 'plan version is out of range'; end if;
+  if p_plan_version not between 1 and 4 then raise exception 'plan version is out of range'; end if;
   if mission.status = 'planning' and p_plan_version <> 1 then raise exception 'initial plan must be version 1'; end if;
   if mission.status = 'active' and p_plan_version <> mission.plan_version + 1 then
     raise exception 'replacement plan version must increment exactly once';

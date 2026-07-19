@@ -13,6 +13,7 @@
     "dev:web": "pnpm --filter @pulse-atx/web dev",
     "demo:malicious": "pnpm --filter @pulse-atx/scripts exec tsx inject-malicious-event.ts",
     "demo:containment": "pnpm --filter @pulse-atx/scripts exec tsx demo-containment.ts",
+    "demo:incident-commander": "pnpm --filter @pulse-atx/scripts exec tsx incident-commander-demo.ts",
     "demo:replay": "pnpm --filter @pulse-atx/scripts exec tsx replay-incidents.ts",
     "demo:scenarios": "pnpm --filter @pulse-atx/scripts exec tsx run-demo.ts",
     "evaluate:learning": "pnpm --filter @pulse-atx/scripts exec tsx evaluate-learning.ts",
