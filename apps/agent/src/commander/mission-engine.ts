@@ -1,0 +1,386 @@
+import type { CounterfactualAudit, MissionPlan } from "./mission-schemas.js";
+import type {
+  MissionRecord,
+  MissionRepository,
+  MissionStepRecord,
+} from "./mission-repository.js";
+import type { MissionPlanner } from "./mission-planner.js";
+import type { AgentToolRegistry } from "./tools/registry.js";
+import type { IncidentSnapshot } from "./tools/types.js";
+
+export interface MissionContextProvider {
+  getIncidentSnapshot(
+    incidentId: string,
+    signal?: AbortSignal,
+  ): Promise<IncidentSnapshot>;
+  getRelevantLessons(
+    snapshot: IncidentSnapshot,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>[]>;
+}
+
+export interface MissionToolExecutionRequest {
+  audit: CounterfactualAudit | null;
+  mission: MissionRecord;
+  signal?: AbortSignal | undefined;
+  snapshot: IncidentSnapshot;
+  step: MissionStepRecord;
+}
+
+export type MissionToolExecutionOutcome =
+  | { result: unknown; status: "completed" }
+  | { nextWakeAt: string; result: unknown; status: "waiting" }
+  | { result: unknown; status: "waiting_approval" }
+  | { error: string; result?: unknown; status: "failed" };
+
+export interface MissionToolRunner {
+  execute(
+    request: MissionToolExecutionRequest,
+  ): Promise<MissionToolExecutionOutcome>;
+}
+
+export interface MissionEngineOptions {
+  maxMissionLifetimeMs?: number | undefined;
+  maxToolExecutionsPerWake?: number | undefined;
+  now?: (() => Date) | undefined;
+}
+
+export interface MissionWakeResult {
+  executions: number;
+  mission: MissionRecord;
+}
+
+function planFromRecords(
+  mission: MissionRecord,
+  steps: MissionStepRecord[],
+): MissionPlan {
+  const schedule = steps.find(
+    (step) => step.toolName === "schedule_incident_recheck",
+  );
+  const afterSeconds =
+    typeof schedule?.toolArguments.afterSeconds === "number"
+      ? schedule.toolArguments.afterSeconds
+      : 60;
+  return {
+    assumptions: mission.assumptions,
+    goal: mission.goal,
+    priority: mission.priority,
+    recheckAfterSeconds: afterSeconds,
+    steps: steps.map((step) => ({
+      arguments: step.toolArguments,
+      order: step.stepOrder,
+      rationale: step.rationale,
+      requiresFreshObservation: step.requiresFreshObservation,
+      tool: step.toolName,
+    })),
+    successCriteria: mission.successCriteria,
+  };
+}
+
+export class MissionExecutionEngine {
+  private readonly maxMissionLifetimeMs: number;
+  private readonly maxToolExecutionsPerWake: number;
+  private readonly now: () => Date;
+
+  constructor(
+    private readonly repository: MissionRepository,
+    private readonly planner: MissionPlanner,
+    private readonly registry: AgentToolRegistry,
+    private readonly contextProvider: MissionContextProvider,
+    private readonly toolRunner: MissionToolRunner,
+    options: MissionEngineOptions = {},
+  ) {
+    this.maxMissionLifetimeMs = options.maxMissionLifetimeMs ?? 4 * 60 * 60_000;
+    this.maxToolExecutionsPerWake = Math.min(
+      options.maxToolExecutionsPerWake ?? 12,
+      12,
+    );
+    this.now = options.now ?? (() => new Date());
+  }
+
+  async processMission(
+    missionId: string,
+    signal?: AbortSignal,
+  ): Promise<MissionWakeResult> {
+    let mission = await this.requireMission(missionId);
+    if (["cancelled", "completed", "failed"].includes(mission.status)) {
+      return { executions: 0, mission };
+    }
+    if (
+      this.now().getTime() - Date.parse(mission.startedAt) >
+      this.maxMissionLifetimeMs
+    ) {
+      mission = await this.failMission(
+        mission,
+        "Maximum configured mission lifetime exceeded",
+      );
+      return { executions: 0, mission };
+    }
+    if (mission.status === "waiting" || mission.status === "waiting_approval") {
+      return { executions: 0, mission };
+    }
+
+    let snapshot = await this.contextProvider.getIncidentSnapshot(
+      mission.incidentId,
+      signal,
+    );
+    if (mission.status === "planning") {
+      try {
+        const relevantLessons = await this.contextProvider.getRelevantLessons(
+          snapshot,
+          signal,
+        );
+        const planResult = await this.planner.createPlan(
+          {
+            incidentSnapshot: snapshot,
+            missionId: mission.id,
+            relevantLessons,
+            triggerReason: mission.triggerReason,
+          },
+          signal,
+        );
+        mission = await this.repository.persistPlan({
+          missionId: mission.id,
+          plan: planResult.plan,
+          planVersion: mission.planVersion,
+          usedFallback: planResult.usedFallback,
+          validationFailures: planResult.validationFailures,
+        });
+        await this.repository.appendTimeline({
+          eventType: "mission_goal_established",
+          incidentId: mission.incidentId,
+          message: "Goal established",
+          metadata: {
+            goal: mission.goal,
+            priority: mission.priority,
+            promptVersion: planResult.promptVersion,
+          },
+          missionId: mission.id,
+        });
+      } catch (error) {
+        mission = await this.failMission(
+          mission,
+          error instanceof Error ? error.message : "Mission planning failed",
+        );
+        return { executions: 0, mission };
+      }
+    }
+
+    const steps = await this.repository.listSteps(
+      mission.id,
+      mission.planVersion,
+    );
+    let executions = 0;
+    for (const plannedStep of steps) {
+      if (plannedStep.status !== "planned") continue;
+      if (executions >= this.maxToolExecutionsPerWake) {
+        const nextWakeAt = new Date(
+          this.now().getTime() + 15_000,
+        ).toISOString();
+        mission = await this.repository.transitionMission(
+          mission.id,
+          "active",
+          "waiting",
+          { nextWakeAt },
+        );
+        await this.repository.appendTimeline({
+          eventType: "mission_execution_budget_exhausted",
+          incidentId: mission.incidentId,
+          message:
+            "Wake-cycle execution budget reached; continuation scheduled",
+          metadata: { executions, nextWakeAt },
+          missionId: mission.id,
+        });
+        return { executions, mission };
+      }
+
+      if (plannedStep.requiresFreshObservation) {
+        snapshot = await this.contextProvider.getIncidentSnapshot(
+          mission.incidentId,
+          signal,
+        );
+      }
+      const runningStep = await this.repository.markStepRunning(plannedStep.id);
+      const definition = this.registry.resolve(runningStep.toolName).definition;
+      let audit: CounterfactualAudit | null = null;
+      if (definition.securityPolicy.impact === "high") {
+        const auditResult = await this.planner.auditAction(
+          {
+            incidentSnapshot: snapshot,
+            step: {
+              arguments: runningStep.toolArguments,
+              order: runningStep.stepOrder,
+              rationale: runningStep.rationale,
+              requiresFreshObservation: runningStep.requiresFreshObservation,
+              tool: runningStep.toolName,
+            },
+          },
+          signal,
+        );
+        audit = auditResult.audit;
+      }
+
+      let outcome: MissionToolExecutionOutcome;
+      try {
+        outcome = await this.toolRunner.execute({
+          audit,
+          mission,
+          signal,
+          snapshot,
+          step: runningStep,
+        });
+      } catch (error) {
+        outcome = {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unknown tool execution failure",
+          status: "failed",
+        };
+      }
+      executions += 1;
+
+      if (outcome.status === "completed") {
+        await this.repository.recordStepResult({
+          audit,
+          result: outcome.result,
+          status: "completed",
+          stepId: runningStep.id,
+        });
+        mission = await this.repository.transitionMission(
+          mission.id,
+          "active",
+          "active",
+          { currentStep: runningStep.stepOrder },
+        );
+        await this.repository.appendTimeline({
+          eventType: "mission_tool_completed",
+          incidentId: mission.incidentId,
+          message: `${runningStep.toolName} completed`,
+          metadata: {
+            planVersion: mission.planVersion,
+            stepOrder: runningStep.stepOrder,
+            toolName: runningStep.toolName,
+          },
+          missionId: mission.id,
+        });
+        continue;
+      }
+
+      if (outcome.status === "waiting") {
+        await this.repository.recordStepResult({
+          audit,
+          result: outcome.result,
+          status: "waiting",
+          stepId: runningStep.id,
+        });
+        mission = await this.repository.transitionMission(
+          mission.id,
+          "active",
+          "waiting",
+          {
+            currentStep: runningStep.stepOrder,
+            nextWakeAt: outcome.nextWakeAt,
+          },
+        );
+        await this.repository.appendTimeline({
+          eventType: "mission_recheck_scheduled",
+          incidentId: mission.incidentId,
+          message: "Recheck scheduled",
+          metadata: { nextWakeAt: outcome.nextWakeAt },
+          missionId: mission.id,
+        });
+        return { executions, mission };
+      }
+
+      if (outcome.status === "waiting_approval") {
+        await this.repository.recordStepResult({
+          audit,
+          result: outcome.result,
+          status: "waiting_approval",
+          stepId: runningStep.id,
+        });
+        mission = await this.repository.transitionMission(
+          mission.id,
+          "active",
+          "waiting_approval",
+          { currentStep: runningStep.stepOrder, nextWakeAt: null },
+        );
+        await this.repository.appendTimeline({
+          eventType: "mission_approval_requested",
+          incidentId: mission.incidentId,
+          message: "Human approval requested",
+          metadata: { stepOrder: runningStep.stepOrder },
+          missionId: mission.id,
+        });
+        return { executions, mission };
+      }
+
+      await this.repository.recordStepResult({
+        audit,
+        error: outcome.error,
+        result: outcome.result,
+        status: "failed",
+        stepId: runningStep.id,
+      });
+      mission = await this.failMission(mission, outcome.error);
+      return { executions, mission };
+    }
+
+    const terminalTools = new Set(steps.map((step) => step.toolName));
+    const finalStatus = terminalTools.has("close_incident")
+      ? "completed"
+      : "waiting";
+    const scheduleStep = steps.find(
+      (step) => step.toolName === "schedule_incident_recheck",
+    );
+    const afterSeconds =
+      typeof scheduleStep?.toolArguments.afterSeconds === "number"
+        ? scheduleStep.toolArguments.afterSeconds
+        : 60;
+    mission = await this.repository.transitionMission(
+      mission.id,
+      "active",
+      finalStatus,
+      {
+        completedAt:
+          finalStatus === "completed" ? this.now().toISOString() : null,
+        nextWakeAt:
+          finalStatus === "waiting"
+            ? new Date(
+                this.now().getTime() + afterSeconds * 1_000,
+              ).toISOString()
+            : null,
+      },
+    );
+    return { executions, mission };
+  }
+
+  private async failMission(
+    mission: MissionRecord,
+    reason: string,
+  ): Promise<MissionRecord> {
+    const failed = await this.repository.transitionMission(
+      mission.id,
+      ["planning", "active", "waiting", "waiting_approval"],
+      "failed",
+      { completedAt: this.now().toISOString(), failureReason: reason },
+    );
+    await this.repository.appendTimeline({
+      eventType: "mission_failed",
+      incidentId: failed.incidentId,
+      message: "Mission failed safely",
+      metadata: { reason },
+      missionId: failed.id,
+    });
+    return failed;
+  }
+
+  private async requireMission(missionId: string): Promise<MissionRecord> {
+    const mission = await this.repository.getMission(missionId);
+    if (!mission) throw new Error(`Mission ${missionId} was not found`);
+    return mission;
+  }
+}
+
+export { planFromRecords };

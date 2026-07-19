@@ -1,6 +1,6 @@
 # Current Phase
 
-Autonomous Incident Commander — agentic 2: typed tool registry
+Autonomous Incident Commander — agentic 3: mission planner and execution engine
 
 # Status
 
@@ -33,6 +33,13 @@ complete
 - Added deterministic incident-state comparison for severity, lanes, status, transit delay, affected-route count, weather, duration, confidence, and geographic spread.
 - Added a registry that rejects unknown tools, validates calls before execution, creates stable fingerprints, validates results, applies abortable timeouts, and emits structured execution logs.
 - Defined a narrow repository-backed operations interface so registered tools cannot construct URLs, execute arbitrary code, or escape the active incident/mission.
+- Added strict schemas for bounded mission plans, revisions, and counterfactual audits, including sequential unique steps, the exact tool-name allowlist, an eight-step ceiling, and a mandatory recheck or explicit closure path.
+- Added versioned mission-planning, revision, and counterfactual prompts that treat feed/database content as untrusted evidence and prohibit hidden chain-of-thought, arbitrary URLs, code, shell commands, and non-allowlisted tools.
+- Added a Nemotron mission planner with pre/post-model security scans, tool-argument validation, one repair attempt, deterministic fallback planning, deterministic revision fallback, and a safe structured counterfactual fallback.
+- Added deterministic mission-trigger evaluation for severity, cross-feed correlation, major routes, duration, material changes, alert boundaries, and security boundaries, while leaving low-impact single-feed incidents on the normal monitoring path.
+- Added an explicit mission repository contract and deterministic in-memory implementation with one-active-mission idempotency, immutable plan-version step records, legal state-transition enforcement, and structured timeline persistence.
+- Added the bounded mission execution engine with configurable mission lifetime, a hard 12-execution wake-cycle ceiling, fresh-observation hooks, counterfactual audit before high-impact steps, safe waiting/approval/failure transitions, and persistent step results.
+- Added the Incident Commander orchestration entry point that creates at most one qualifying mission and immediately starts its persisted planning/execution lifecycle.
 
 # Verification Commands and Results
 
@@ -63,6 +70,8 @@ complete
 - Agentic data-model verification: `pnpm --filter @pulse-atx/agent test -- migration-contract.test.ts` passed 11 tests; `pnpm --filter @pulse-atx/database-types typecheck` passed.
 - `pnpm dlx supabase@2.58.5 db reset` could not run because the Docker Desktop Linux engine is currently stopped; the migration contract test validates required DDL until Docker is available.
 - Agentic tool verification: `pnpm --filter @pulse-atx/agent test -- commander-tools.test.ts` passed 5 tests covering the exact allowlist, invalid names/arguments, scope enforcement, deterministic change detection, fingerprints, and approval metadata.
+- Agentic planner/engine verification: `pnpm --filter @pulse-atx/agent test -- mission-engine.test.ts commander-tools.test.ts` passed 11 tests covering trigger/no-trigger boundaries, plan persistence, invalid-plan repair, deterministic fallback, single-active-mission idempotency, tool validation, and wake-cycle execution limits.
+- Agentic 3 `pnpm format:check`, `pnpm typecheck`, and `pnpm lint` — passed across the workspace with zero warnings.
 
 # Missing Configuration
 
@@ -81,4 +90,4 @@ complete
 
 # Next Phase
 
-Autonomous Incident Commander — agentic 3: mission planner and execution engine.
+Autonomous Incident Commander — agentic 4: approval and re-observation loop.
