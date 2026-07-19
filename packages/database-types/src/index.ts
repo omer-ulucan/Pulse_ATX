@@ -130,6 +130,193 @@ export type Database = {
         };
         Relationships: [];
       };
+      agent_mission_steps: {
+        Row: {
+          completed_at: string | null;
+          created_at: string;
+          decision_audit: Json | null;
+          error: string | null;
+          id: string;
+          mission_id: string;
+          plan_version: number;
+          rationale: string | null;
+          requires_fresh_observation: boolean;
+          result: Json | null;
+          started_at: string | null;
+          status: string;
+          step_order: number;
+          tool_arguments: Json;
+          tool_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          completed_at?: string | null;
+          created_at?: string;
+          decision_audit?: Json | null;
+          error?: string | null;
+          id?: string;
+          mission_id: string;
+          plan_version: number;
+          rationale?: string | null;
+          requires_fresh_observation?: boolean;
+          result?: Json | null;
+          started_at?: string | null;
+          status: string;
+          step_order: number;
+          tool_arguments?: Json;
+          tool_name: string;
+          updated_at?: string;
+        };
+        Update: {
+          completed_at?: string | null;
+          created_at?: string;
+          decision_audit?: Json | null;
+          error?: string | null;
+          id?: string;
+          mission_id?: string;
+          plan_version?: number;
+          rationale?: string | null;
+          requires_fresh_observation?: boolean;
+          result?: Json | null;
+          started_at?: string | null;
+          status?: string;
+          step_order?: number;
+          tool_arguments?: Json;
+          tool_name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_mission_steps_mission_id_fkey";
+            columns: ["mission_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_missions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      agent_missions: {
+        Row: {
+          assumptions: Json;
+          claimed_by: string | null;
+          completed_at: string | null;
+          created_at: string;
+          current_step: number;
+          failure_reason: string | null;
+          goal: string;
+          id: string;
+          incident_id: string;
+          lease_expires_at: string | null;
+          next_wake_at: string | null;
+          plan_version: number;
+          priority: number;
+          started_at: string;
+          status: string;
+          success_criteria: Json;
+          trigger_reason: Json;
+          updated_at: string;
+          wake_cycle: number;
+        };
+        Insert: {
+          assumptions?: Json;
+          claimed_by?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          current_step?: number;
+          failure_reason?: string | null;
+          goal: string;
+          id?: string;
+          incident_id: string;
+          lease_expires_at?: string | null;
+          next_wake_at?: string | null;
+          plan_version?: number;
+          priority?: number;
+          started_at?: string;
+          status: string;
+          success_criteria?: Json;
+          trigger_reason?: Json;
+          updated_at?: string;
+          wake_cycle?: number;
+        };
+        Update: {
+          assumptions?: Json;
+          claimed_by?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          current_step?: number;
+          failure_reason?: string | null;
+          goal?: string;
+          id?: string;
+          incident_id?: string;
+          lease_expires_at?: string | null;
+          next_wake_at?: string | null;
+          plan_version?: number;
+          priority?: number;
+          started_at?: string;
+          status?: string;
+          success_criteria?: Json;
+          trigger_reason?: Json;
+          updated_at?: string;
+          wake_cycle?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_missions_incident_id_fkey";
+            columns: ["incident_id"];
+            isOneToOne: false;
+            referencedRelation: "incidents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      agent_observations: {
+        Row: {
+          change_summary: Json;
+          created_at: string;
+          id: string;
+          incident_id: string;
+          mission_id: string;
+          observation_type: string;
+          state_fingerprint: string;
+          state_snapshot: Json;
+        };
+        Insert: {
+          change_summary?: Json;
+          created_at?: string;
+          id?: string;
+          incident_id: string;
+          mission_id: string;
+          observation_type: string;
+          state_fingerprint: string;
+          state_snapshot: Json;
+        };
+        Update: {
+          change_summary?: Json;
+          created_at?: string;
+          id?: string;
+          incident_id?: string;
+          mission_id?: string;
+          observation_type?: string;
+          state_fingerprint?: string;
+          state_snapshot?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_observations_incident_id_fkey";
+            columns: ["incident_id"];
+            isOneToOne: false;
+            referencedRelation: "incidents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_observations_mission_id_fkey";
+            columns: ["mission_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_missions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       agent_timeline: {
         Row: {
           created_at: string;
@@ -161,6 +348,85 @@ export type Database = {
             columns: ["incident_id"];
             isOneToOne: false;
             referencedRelation: "incidents";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      agent_tool_executions: {
+        Row: {
+          approval_alert_id: string | null;
+          approval_status: string | null;
+          arguments: Json;
+          arguments_fingerprint: string;
+          completed_at: string | null;
+          created_at: string;
+          error: string | null;
+          id: string;
+          latency_ms: number | null;
+          mission_id: string;
+          mission_step_id: string | null;
+          result: Json | null;
+          security_status: string;
+          started_at: string | null;
+          status: string;
+          tool_name: string;
+        };
+        Insert: {
+          approval_alert_id?: string | null;
+          approval_status?: string | null;
+          arguments: Json;
+          arguments_fingerprint: string;
+          completed_at?: string | null;
+          created_at?: string;
+          error?: string | null;
+          id?: string;
+          latency_ms?: number | null;
+          mission_id: string;
+          mission_step_id?: string | null;
+          result?: Json | null;
+          security_status: string;
+          started_at?: string | null;
+          status: string;
+          tool_name: string;
+        };
+        Update: {
+          approval_alert_id?: string | null;
+          approval_status?: string | null;
+          arguments?: Json;
+          arguments_fingerprint?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          error?: string | null;
+          id?: string;
+          latency_ms?: number | null;
+          mission_id?: string;
+          mission_step_id?: string | null;
+          result?: Json | null;
+          security_status?: string;
+          started_at?: string | null;
+          status?: string;
+          tool_name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_tool_executions_approval_alert_id_fkey";
+            columns: ["approval_alert_id"];
+            isOneToOne: false;
+            referencedRelation: "alerts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_tool_executions_mission_id_fkey";
+            columns: ["mission_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_missions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_tool_executions_mission_step_id_fkey";
+            columns: ["mission_step_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_mission_steps";
             referencedColumns: ["id"];
           },
         ];

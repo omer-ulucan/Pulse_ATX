@@ -160,4 +160,28 @@ describe("core schema migration", () => {
     );
     expect(migration).toContain("where jobs.raw_event_id = stored_event.id");
   });
+
+  it("defines persistent autonomous incident commander state", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607190001_agent_missions.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("create table public.agent_missions");
+    expect(migration).toContain("create table public.agent_mission_steps");
+    expect(migration).toContain("create table public.agent_observations");
+    expect(migration).toContain("create table public.agent_tool_executions");
+    expect(migration).toContain("agent_missions_active_incident_unique_idx");
+    expect(migration).toContain("unique(mission_id, state_fingerprint)");
+    expect(migration).toContain(
+      "unique(mission_id, tool_name, arguments_fingerprint)",
+    );
+    expect(migration).toContain("lease_expires_at timestamptz");
+    expect(migration).toContain(
+      "alter publication supabase_realtime add table",
+    );
+  });
 });

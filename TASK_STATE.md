@@ -1,10 +1,10 @@
 # Current Phase
 
-Phase 9 — Final Hardening
+Autonomous Incident Commander — agentic 1: mission data model
 
 # Status
 
-complete — post-completion hosted Nemotron integration verified
+complete
 
 # Completed Work
 
@@ -26,6 +26,9 @@ complete — post-completion hosted Nemotron integration verified
 - Rebuilt the landing page, MAE-centered learning view, detect-to-enforce security split, raw event ledger, navigation, notices, empty instruments, and all shared responsive components.
 - Added visible keyboard focus states, single-column breakpoints, ambient-only heartbeat/status motion, and static reduced-motion fallbacks.
 - Removed the unused Tailwind/PostCSS styling pipeline and installed local IBM Plex font packages so production rendering does not depend on a remote font request.
+- Added persistent mission, versioned mission-step, observation, and tool-execution tables with strict status checks, foreign keys, updated-at triggers, dashboard-readable RLS, and Supabase Realtime publication.
+- Enforced one active mission per incident, observation and tool-execution idempotency, bounded plan versions/step order, due-wake indexes, timeline ordering, and worker lease fields for restart recovery.
+- Updated generated-compatible Supabase TypeScript definitions for all four mission tables and their relationships.
 
 # Verification Commands and Results
 
@@ -53,6 +56,8 @@ complete — post-completion hosted Nemotron integration verified
 - Frontend design audit — passed: the web source contains only the eight locked hexadecimal colors and no emerald/green/mint, Inter, terracotta, lorem ipsum, or legacy plain empty-state copy.
 - Production route smoke — `/`, `/dashboard`, `/learning`, `/security`, and `/live` each returned HTTP 200 with a rendered H1.
 - Final `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and approved `pnpm build` — passed after removing the legacy styling dependencies; 10 test files and 45 tests passed.
+- Agentic data-model verification: `pnpm --filter @pulse-atx/agent test -- migration-contract.test.ts` passed 11 tests; `pnpm --filter @pulse-atx/database-types typecheck` passed.
+- `pnpm dlx supabase@2.58.5 db reset` could not run because the Docker Desktop Linux engine is currently stopped; the migration contract test validates required DDL until Docker is available.
 
 # Missing Configuration
 
@@ -61,6 +66,7 @@ complete — post-completion hosted Nemotron integration verified
 - A live 384-dimensional embedding service is not configured; mocked OpenAI-compatible contract tests cover that integration.
 - A HiddenLayer API key is not available; mocked interaction tests cover pre/post-model blocking behavior.
 - NemoClaw and OpenShell CLIs are not installed; the checked-in policies and policy evaluator are verified, but the live sandbox denial command requires those tools.
+- Docker Desktop is installed but its Linux engine is not currently running, so the new mission migration has not yet been applied to local Supabase.
 
 # Known Issues
 
@@ -70,4 +76,4 @@ complete — post-completion hosted Nemotron integration verified
 
 # Next Phase
 
-Project complete — all phases 0 through 9 satisfy their definitions of done.
+Autonomous Incident Commander — agentic 2: typed tool registry.
