@@ -1,6 +1,6 @@
 # Current Phase
 
-Autonomous Incident Commander — agentic 1: mission data model
+Autonomous Incident Commander — agentic 2: typed tool registry
 
 # Status
 
@@ -29,6 +29,10 @@ complete
 - Added persistent mission, versioned mission-step, observation, and tool-execution tables with strict status checks, foreign keys, updated-at triggers, dashboard-readable RLS, and Supabase Realtime publication.
 - Enforced one active mission per incident, observation and tool-execution idempotency, bounded plan versions/step order, due-wake indexes, timeline ordering, and worker lease fields for restart recovery.
 - Updated generated-compatible Supabase TypeScript definitions for all four mission tables and their relationships.
+- Added the exact 15-tool Autonomous Incident Commander allowlist with strict Zod input/output contracts, bounded per-tool timeouts, incident/mission scoping, security impact metadata, approval predicates, and explicit idempotency strategies.
+- Added deterministic incident-state comparison for severity, lanes, status, transit delay, affected-route count, weather, duration, confidence, and geographic spread.
+- Added a registry that rejects unknown tools, validates calls before execution, creates stable fingerprints, validates results, applies abortable timeouts, and emits structured execution logs.
+- Defined a narrow repository-backed operations interface so registered tools cannot construct URLs, execute arbitrary code, or escape the active incident/mission.
 
 # Verification Commands and Results
 
@@ -58,6 +62,7 @@ complete
 - Final `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and approved `pnpm build` — passed after removing the legacy styling dependencies; 10 test files and 45 tests passed.
 - Agentic data-model verification: `pnpm --filter @pulse-atx/agent test -- migration-contract.test.ts` passed 11 tests; `pnpm --filter @pulse-atx/database-types typecheck` passed.
 - `pnpm dlx supabase@2.58.5 db reset` could not run because the Docker Desktop Linux engine is currently stopped; the migration contract test validates required DDL until Docker is available.
+- Agentic tool verification: `pnpm --filter @pulse-atx/agent test -- commander-tools.test.ts` passed 5 tests covering the exact allowlist, invalid names/arguments, scope enforcement, deterministic change detection, fingerprints, and approval metadata.
 
 # Missing Configuration
 
@@ -76,4 +81,4 @@ complete
 
 # Next Phase
 
-Autonomous Incident Commander — agentic 2: typed tool registry.
+Autonomous Incident Commander — agentic 3: mission planner and execution engine.
