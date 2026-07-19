@@ -5,6 +5,16 @@ import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
 
 import { DemoControlServer } from "./control/control-server.js";
+import { MissionExecutionEngine } from "./commander/mission-engine.js";
+import { MissionLifecycleCoordinator } from "./commander/mission-lifecycle.js";
+import { MissionPlanner } from "./commander/mission-planner.js";
+import {
+  SecureMissionToolRunner,
+  OpenShellToolPolicy,
+} from "./commander/secure-tool-runner.js";
+import { SupabaseCommanderOperations } from "./commander/supabase-commander-operations.js";
+import { SupabaseMissionRepository } from "./commander/supabase-mission-repository.js";
+import { createDefaultToolRegistry } from "./commander/tools/default-tools.js";
 import { SupabaseDemoControlRepository } from "./control/demo-control-repository.js";
 import { CrossFeedCorrelationService } from "./correlation/cross-feed-correlator.js";
 import { CapMetroAlertsFeedAdapter } from "./feeds/capmetro-alerts.js";
@@ -20,6 +30,7 @@ import { SupabaseEventRepository } from "./repositories/event-repository.js";
 import { MemoryRuntimeRepository } from "./repositories/memory-runtime-repository.js";
 import { SupabaseRuntimeRepository } from "./repositories/runtime-repository.js";
 import { HiddenLayerClient } from "./security/hiddenlayer-client.js";
+import { ToolSecurityBoundary } from "./security/types.js";
 import { IngestionService } from "./services/ingestion-service.js";
 import { AnalysisProcessor } from "./services/analysis-processor.js";
 import { NemotronAnalyzer } from "./services/nemotron-analyzer.js";
@@ -51,6 +62,7 @@ let runtimeRepository;
 let jobProcessor: AnalysisProcessor | undefined;
 let memoryService: MemoryService | undefined;
 let controlServer: DemoControlServer | undefined;
+let missionProcessor: MissionLifecycleCoordinator | undefined;
 if (environment.DEMO_MODE) {
   runtimeRepository = new MemoryRuntimeRepository();
 } else {
@@ -91,6 +103,7 @@ if (environment.DEMO_MODE) {
     ),
     requesterId: environment.WORKER_ID,
   });
+  const learningRepository = new SupabaseLearningRepository(client);
   memoryService = new MemoryService(
     new EmbeddingClient({
       apiKey: environment.EMBEDDING_API_KEY,
@@ -100,7 +113,7 @@ if (environment.DEMO_MODE) {
       ),
       modelName: requireValue(environment.EMBEDDING_MODEL, "EMBEDDING_MODEL"),
     }),
-    new SupabaseLearningRepository(client),
+    learningRepository,
     new LessonExtractor(vllm, security),
   );
   const analysisRepository = new SupabaseAnalysisRepository(client);
@@ -113,6 +126,36 @@ if (environment.DEMO_MODE) {
     security,
     memoryService,
     new CrossFeedCorrelationService(analysisRepository),
+  );
+  const missionRepository = new SupabaseMissionRepository(client);
+  const missionOperations = new SupabaseCommanderOperations(
+    client,
+    learningRepository,
+    memoryService,
+  );
+  const toolRegistry = createDefaultToolRegistry();
+  const missionPlanner = new MissionPlanner(vllm, toolRegistry, security);
+  const missionToolRunner = new SecureMissionToolRunner(
+    toolRegistry,
+    missionRepository,
+    new ToolSecurityBoundary(security),
+    new OpenShellToolPolicy(),
+    missionOperations,
+    { logger: (message, context) => logger.info(context, message) },
+  );
+  const missionEngine = new MissionExecutionEngine(
+    missionRepository,
+    missionPlanner,
+    toolRegistry,
+    missionOperations,
+    missionToolRunner,
+  );
+  missionProcessor = new MissionLifecycleCoordinator(
+    missionRepository,
+    missionPlanner,
+    missionEngine,
+    missionOperations,
+    { workerId: environment.WORKER_ID },
   );
   if (environment.AUSTIN_TRAFFIC_FEED_URL) {
     const ingestion = new IngestionService(
@@ -161,6 +204,7 @@ const worker = new HeartbeatWorker(
   (summary) => logger.info(summary, "heartbeat completed"),
   jobProcessor,
   memoryService,
+  missionProcessor,
 );
 
 logger.info(

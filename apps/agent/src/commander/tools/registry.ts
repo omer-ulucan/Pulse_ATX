@@ -64,6 +64,10 @@ export class AgentToolRegistry {
         strategy === "incident_singleton" ? undefined : context.missionId,
       strategy,
       tool: validated.tool,
+      wakeCycle:
+        strategy === "mission_arguments" || strategy === "read_only"
+          ? context.wakeCycle
+          : undefined,
     });
   }
 

@@ -1,6 +1,6 @@
 # Current Phase
 
-Autonomous Incident Commander — agentic 3: mission planner and execution engine
+Autonomous Incident Commander — agentic 4: approval and re-observation loop
 
 # Status
 
@@ -40,6 +40,14 @@ complete
 - Added an explicit mission repository contract and deterministic in-memory implementation with one-active-mission idempotency, immutable plan-version step records, legal state-transition enforcement, and structured timeline persistence.
 - Added the bounded mission execution engine with configurable mission lifetime, a hard 12-execution wake-cycle ceiling, fresh-observation hooks, counterfactual audit before high-impact steps, safe waiting/approval/failure transitions, and persistent step results.
 - Added the Incident Commander orchestration entry point that creates at most one qualifying mission and immediately starts its persisted planning/execution lifecycle.
+- Added transactional Supabase runtime functions for idempotent mission creation, priority-ordered `SKIP LOCKED` worker claims, bounded leases, atomic plan/step persistence, compare-and-set state transitions, execution deduplication, and idempotent approval decisions.
+- Added the production Supabase mission repository and correlated traffic/transit/weather operations adapter; live snapshots deterministically derive severity, blocked lanes, route delay, affected routes, feed count, weather amplification, duration, confidence, and spread from persisted incident evidence.
+- Added the full code-enforced tool pipeline: Zod allowlist/argument validation, HiddenLayer call scanning, local OpenShell policy evaluation, approval enforcement, execution persistence, output validation, HiddenLayer result scanning, and idempotent result replay.
+- Added fail-closed HiddenLayer blocks, approval-on-ambiguous-security behavior, protected-publication boundaries, operator rejection cancellation, and same-mission resumption only after an approved execution record is observed.
+- Added heartbeat-driven mission discovery, bounded concurrent claims, startup/stale-lease recovery, automatic due wakes, fresh observation persistence, deterministic state comparison, Nemotron revision decisions, three-version enforcement, and immutable prior plan history.
+- Added deterministic escalation and de-escalation replacement plans, including severity changes, alert revision, explicit approval request, simulated publication, cancellation of stale actions, and another bounded recheck.
+- Wired the Autonomous Incident Commander into the persistent worker after live ingestion/analysis and before recursive memory consolidation; mission batch telemetry is now included in worker health metadata.
+- Extended the existing recursive memory pipeline to embed and store structured mission lessons with mission metadata and retrieval-compatible incident conditions.
 
 # Verification Commands and Results
 
@@ -72,6 +80,9 @@ complete
 - Agentic tool verification: `pnpm --filter @pulse-atx/agent test -- commander-tools.test.ts` passed 5 tests covering the exact allowlist, invalid names/arguments, scope enforcement, deterministic change detection, fingerprints, and approval metadata.
 - Agentic planner/engine verification: `pnpm --filter @pulse-atx/agent test -- mission-engine.test.ts commander-tools.test.ts` passed 11 tests covering trigger/no-trigger boundaries, plan persistence, invalid-plan repair, deterministic fallback, single-active-mission idempotency, tool validation, and wake-cycle execution limits.
 - Agentic 3 `pnpm format:check`, `pnpm typecheck`, and `pnpm lint` — passed across the workspace with zero warnings.
+- Agentic approval/re-observation verification: `pnpm --filter @pulse-atx/agent test -- mission-lifecycle.test.ts mission-engine.test.ts commander-tools.test.ts migration-contract.test.ts heartbeat.test.ts worker-flow.e2e.test.ts` passed 6 files and 32 tests.
+- Agentic 4 `pnpm typecheck` and `pnpm lint` — passed across all workspace applications and packages with zero warnings.
+- `pnpm dlx supabase@2.58.5 db reset` — could not run because the Docker Desktop Linux engine pipe is unavailable; migration contracts cover the runtime SQL until Docker is restarted.
 
 # Missing Configuration
 
@@ -90,4 +101,4 @@ complete
 
 # Next Phase
 
-Autonomous Incident Commander — agentic 4: approval and re-observation loop.
+Autonomous Incident Commander — agentic 5: incident commander dashboard.

@@ -4,6 +4,11 @@ import type {
   MissionStatus,
   MissionStepStatus,
 } from "./mission-schemas.js";
+import type {
+  ImpactChange,
+  IncidentSnapshot,
+  ToolName,
+} from "./tools/types.js";
 
 export interface MissionRecord {
   assumptions: string[];
@@ -49,6 +54,35 @@ export interface MissionTimelineEvent {
   missionId: string;
 }
 
+export interface MissionObservationRecord {
+  changeSummary: ImpactChange | Record<string, never>;
+  createdAt: string;
+  id: string;
+  incidentId: string;
+  missionId: string;
+  observationType: string;
+  stateFingerprint: string;
+  stateSnapshot: IncidentSnapshot;
+}
+
+export interface ToolExecutionRecord {
+  approvalAlertId: string | null;
+  approvalStatus: "approved" | "not_required" | "pending" | "rejected" | null;
+  arguments: Record<string, unknown>;
+  argumentsFingerprint: string;
+  completedAt: string | null;
+  error: string | null;
+  id: string;
+  latencyMs: number | null;
+  missionId: string;
+  missionStepId: string | null;
+  result: unknown;
+  securityStatus: string;
+  startedAt: string | null;
+  status: "blocked" | "completed" | "failed" | "pending" | "running";
+  toolName: ToolName;
+}
+
 export interface CreateMissionInput {
   goal: string;
   incidentId: string;
@@ -91,12 +125,58 @@ export interface MissionRepository {
     planVersion: number,
   ): Promise<MissionStepRecord[]>;
   markStepRunning(stepId: string): Promise<MissionStepRecord>;
+  getLatestObservation(
+    missionId: string,
+  ): Promise<MissionObservationRecord | null>;
   persistPlan(input: PersistPlanInput): Promise<MissionRecord>;
   recordStepResult(input: MissionStepResultInput): Promise<MissionStepRecord>;
+  recordObservation(input: {
+    changeSummary: ImpactChange | Record<string, never>;
+    incidentId: string;
+    missionId: string;
+    observationType: string;
+    stateFingerprint: string;
+    stateSnapshot: IncidentSnapshot;
+  }): Promise<MissionObservationRecord>;
   transitionMission(
     missionId: string,
     expected: MissionStatus | MissionStatus[],
     status: MissionStatus,
     patch?: MissionTransitionPatch,
   ): Promise<MissionRecord>;
+}
+
+export interface MissionRuntimeRepository extends MissionRepository {
+  beginToolExecution(input: {
+    approvalRequired: boolean;
+    arguments: Record<string, unknown>;
+    argumentsFingerprint: string;
+    missionId: string;
+    missionStepId: string;
+    securityStatus: string;
+    toolName: ToolName;
+  }): Promise<ToolExecutionRecord>;
+  claimMissions(
+    workerId: string,
+    limit: number,
+    leaseSeconds: number,
+  ): Promise<MissionRecord[]>;
+  decideToolApproval(
+    executionId: string,
+    operator: string,
+    approved: boolean,
+  ): Promise<ToolExecutionRecord>;
+  finishToolExecution(input: {
+    error: string | null;
+    executionId: string;
+    latencyMs: number;
+    result: unknown;
+    securityStatus: string;
+    status: "blocked" | "completed" | "failed";
+  }): Promise<ToolExecutionRecord>;
+  getMissionApprovalDecision(
+    missionId: string,
+  ): Promise<"approved" | "pending" | "rejected" | null>;
+  markToolExecutionRunning(executionId: string): Promise<ToolExecutionRecord>;
+  releaseClaim(missionId: string, workerId: string): Promise<void>;
 }

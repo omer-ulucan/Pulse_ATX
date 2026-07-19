@@ -67,9 +67,9 @@ class MockOperations implements ToolOperations {
   getIncidentSnapshot() {
     return Promise.resolve(snapshot());
   }
-  publishSimulatedAlert(input: { alertId: string }) {
+  publishSimulatedAlert(input: { alertId?: string | undefined }) {
     return Promise.resolve({
-      alertId: input.alertId,
+      alertId: input.alertId ?? randomUUID(),
       channel: "dashboard_simulation" as const,
       publishedAt: "2026-07-19T14:10:00.000Z",
     });
@@ -77,9 +77,9 @@ class MockOperations implements ToolOperations {
   recordIncidentOutcome() {
     return Promise.resolve({ outcomeId: randomUUID() });
   }
-  requestHumanApproval(input: { alertId: string }) {
+  requestHumanApproval(input: { alertId?: string | undefined }) {
     return Promise.resolve({
-      alertId: input.alertId,
+      alertId: input.alertId ?? randomUUID(),
       status: "pending_approval" as const,
     });
   }
@@ -87,11 +87,11 @@ class MockOperations implements ToolOperations {
     return Promise.resolve([]);
   }
   reviseAlertDraft(input: {
-    alertId: string;
+    alertId?: string | undefined;
     audience: "affected_routes" | "city_operators" | "citywide";
   }) {
     return Promise.resolve({
-      alertId: input.alertId,
+      alertId: input.alertId ?? randomUUID(),
       audience: input.audience,
       requiresApproval: input.audience === "citywide",
       status: "draft" as const,

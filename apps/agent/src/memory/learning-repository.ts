@@ -1,4 +1,3 @@
-import type { IncidentLesson } from "@pulse-atx/schemas";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -58,7 +57,7 @@ export interface MemoryQuery {
 export interface StoredMemory {
   embedding: number[];
   incidentId: string;
-  lesson: IncidentLesson;
+  lesson: Record<string, unknown>;
   qualityScore: number;
   summary: string;
 }

@@ -156,7 +156,7 @@ export interface ToolOperations {
   ): Promise<z.infer<typeof TransitRouteSchema>[]>;
   getIncidentSnapshot(incidentId: string): Promise<IncidentSnapshot>;
   publishSimulatedAlert(input: {
-    alertId: string;
+    alertId?: string | undefined;
     incidentId: string;
   }): Promise<{
     alertId: string;
@@ -170,7 +170,7 @@ export interface ToolOperations {
     outcome: Record<string, unknown>;
   }): Promise<{ outcomeId: string }>;
   requestHumanApproval(input: {
-    alertId: string;
+    alertId?: string | undefined;
     audience: "affected_routes" | "city_operators" | "citywide";
     impact: string;
     incidentId: string;
@@ -183,7 +183,7 @@ export interface ToolOperations {
   ): Promise<z.infer<typeof SimilarIncidentSchema>[]>;
   reviseAlertDraft(input: {
     affectedRoutes: string[];
-    alertId: string;
+    alertId?: string | undefined;
     audience: "affected_routes" | "city_operators" | "citywide";
     incidentId: string;
     message: string;
@@ -220,6 +220,7 @@ export interface ToolContext {
   operations: ToolOperations;
   securityConfidence: "ambiguous" | "confident";
   severity: number;
+  wakeCycle?: number | undefined;
 }
 
 export interface ToolSecurityPolicy {

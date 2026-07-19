@@ -919,6 +919,26 @@ export type Database = {
         Args: { p_alert_id: string; p_operator: string };
         Returns: string;
       };
+      begin_agent_tool_execution: {
+        Args: {
+          p_approval_required: boolean;
+          p_arguments: Json;
+          p_arguments_fingerprint: string;
+          p_mission_id: string;
+          p_mission_step_id: string;
+          p_security_status: string;
+          p_tool_name: string;
+        };
+        Returns: Json;
+      };
+      claim_agent_missions: {
+        Args: {
+          p_lease_seconds?: number;
+          p_limit?: number;
+          p_worker_id: string;
+        };
+        Returns: Json[];
+      };
       claim_event_jobs: {
         Args: { p_limit?: number; p_worker_id: string };
         Returns: {
@@ -944,6 +964,23 @@ export type Database = {
         };
         Returns: string;
       };
+      create_agent_mission: {
+        Args: {
+          p_goal: string;
+          p_incident_id: string;
+          p_priority: number;
+          p_trigger_reason: Json;
+        };
+        Returns: Json;
+      };
+      decide_agent_tool_approval: {
+        Args: {
+          p_approved: boolean;
+          p_execution_id: string;
+          p_operator: string;
+        };
+        Returns: Json;
+      };
       fail_event_job: {
         Args: {
           p_error: string;
@@ -952,6 +989,27 @@ export type Database = {
           p_worker_id: string;
         };
         Returns: string;
+      };
+      finish_agent_mission_step: {
+        Args: {
+          p_decision_audit: Json;
+          p_error: string;
+          p_result: Json;
+          p_status: string;
+          p_step_id: string;
+        };
+        Returns: Json;
+      };
+      finish_agent_tool_execution: {
+        Args: {
+          p_error: string;
+          p_execution_id: string;
+          p_latency_ms: number;
+          p_result: Json;
+          p_security_status: string;
+          p_status: string;
+        };
+        Returns: Json;
       };
       ingest_raw_event: {
         Args: {
@@ -1024,6 +1082,16 @@ export type Database = {
         };
         Returns: string;
       };
+      persist_agent_mission_plan: {
+        Args: {
+          p_mission_id: string;
+          p_plan: Json;
+          p_plan_version: number;
+          p_used_fallback: boolean;
+          p_validation_failures: Json;
+        };
+        Returns: Json;
+      };
       quarantine_event_job: {
         Args: {
           p_action_taken: string;
@@ -1036,6 +1104,10 @@ export type Database = {
           p_worker_id: string;
         };
         Returns: string;
+      };
+      release_agent_mission_claim: {
+        Args: { p_mission_id: string; p_worker_id: string };
+        Returns: boolean;
       };
       record_incident_outcome: {
         Args: {
@@ -1063,6 +1135,10 @@ export type Database = {
         Args: { p_nonce: string; p_scenario: string };
         Returns: Json;
       };
+      start_agent_mission_step: {
+        Args: { p_step_id: string };
+        Returns: Json;
+      };
       store_incident_memory: {
         Args: {
           p_embedding: string;
@@ -1072,6 +1148,15 @@ export type Database = {
           p_summary: string;
         };
         Returns: string;
+      };
+      transition_agent_mission: {
+        Args: {
+          p_expected_statuses: string[];
+          p_mission_id: string;
+          p_patch?: Json;
+          p_status: string;
+        };
+        Returns: Json;
       };
     };
     Enums: {

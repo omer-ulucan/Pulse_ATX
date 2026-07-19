@@ -1,5 +1,7 @@
 import type { IncidentLesson } from "@pulse-atx/schemas";
 
+import type { MissionLesson } from "../commander/tools/types.js";
+
 import type { EmbeddingProvider } from "./embedding-client.js";
 import type {
   LearningRepository,
@@ -91,11 +93,47 @@ export class MemoryService {
       await this.repository.storeMemory({
         embedding,
         incidentId: candidate.incident.id,
-        lesson,
+        lesson: { ...lesson },
         qualityScore,
         summary,
       });
     }
     return candidates.length;
+  }
+
+  async storeMissionLesson(
+    input: {
+      incidentId: string;
+      incidentType: string;
+      lesson: MissionLesson;
+      missionId: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const summary = `${input.lesson.pattern}. ${input.lesson.recommendedResponsePattern} ${input.lesson.predictionLesson}`;
+    const embedding = await this.embeddings.embed(summary, signal);
+    return this.repository.storeMemory({
+      embedding,
+      incidentId: input.incidentId,
+      lesson: {
+        ...input.lesson,
+        conditions: {
+          event_type: input.incidentType,
+          location_characteristics: [],
+          time_bucket: "unknown",
+          weather:
+            typeof input.lesson.triggerConditions.weather === "string"
+              ? input.lesson.triggerConditions.weather
+              : "unknown",
+        },
+        memoryKind: "mission_lesson",
+        missionId: input.missionId,
+      },
+      qualityScore: Math.max(
+        0.5,
+        1 - Math.min(input.lesson.finalPredictionError / 60, 0.5),
+      ),
+      summary,
+    });
   }
 }

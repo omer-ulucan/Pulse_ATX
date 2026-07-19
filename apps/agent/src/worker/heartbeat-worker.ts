@@ -2,6 +2,7 @@ import { sleep } from "@pulse-atx/shared";
 
 import type { RuntimeRepository } from "../repositories/runtime-repository.js";
 import type { AnalysisBatchSummary } from "../services/analysis-processor.js";
+import type { MissionBatchSummary } from "../commander/mission-lifecycle.js";
 import type { SourcePollOutcome, SourceScheduler } from "./source-scheduler.js";
 
 export interface HeartbeatOptions {
@@ -13,6 +14,7 @@ export interface HeartbeatOptions {
 export interface HeartbeatSummary {
   activeIncidents: number;
   memoriesCreated: number;
+  missions: MissionBatchSummary | null;
   pendingJobs: number;
   pollOutcomes: SourcePollOutcome[];
   processing: AnalysisBatchSummary | null;
@@ -27,6 +29,10 @@ export interface MemoryConsolidator {
   consolidateCompleted(limit?: number, signal?: AbortSignal): Promise<number>;
 }
 
+export interface MissionBatchProcessor {
+  processBatch(signal?: AbortSignal): Promise<MissionBatchSummary>;
+}
+
 export class HeartbeatWorker {
   constructor(
     private readonly repository: RuntimeRepository,
@@ -37,6 +43,7 @@ export class HeartbeatWorker {
       undefined,
     private readonly jobProcessor?: JobBatchProcessor,
     private readonly memoryConsolidator?: MemoryConsolidator,
+    private readonly missionProcessor?: MissionBatchProcessor,
   ) {}
 
   private async updateStatus(
@@ -51,6 +58,7 @@ export class HeartbeatWorker {
       lastHeartbeatAt: this.now().toISOString(),
       metadata: {
         memoriesCreated: summary.memoriesCreated ?? 0,
+        missions: summary.missions ?? null,
         pollOutcomes: summary.pollOutcomes ?? [],
         processing: summary.processing ?? null,
         recoveredJobs: summary.recoveredJobs ?? 0,
@@ -73,6 +81,9 @@ export class HeartbeatWorker {
     const processing = this.jobProcessor
       ? await this.jobProcessor.processBatch(signal)
       : null;
+    const missions = this.missionProcessor
+      ? await this.missionProcessor.processBatch(signal)
+      : null;
     const memoriesCreated = this.memoryConsolidator
       ? await this.memoryConsolidator.consolidateCompleted(2, signal)
       : 0;
@@ -81,6 +92,7 @@ export class HeartbeatWorker {
     const summary = {
       ...metrics,
       memoriesCreated,
+      missions,
       pollOutcomes,
       processing,
       recoveredJobs,

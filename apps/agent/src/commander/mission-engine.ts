@@ -7,6 +7,7 @@ import type {
 import type { MissionPlanner } from "./mission-planner.js";
 import type { AgentToolRegistry } from "./tools/registry.js";
 import type { IncidentSnapshot } from "./tools/types.js";
+import { createFingerprint } from "../lib/fingerprint.js";
 
 export interface MissionContextProvider {
   getIncidentSnapshot(
@@ -28,6 +29,7 @@ export interface MissionToolExecutionRequest {
 }
 
 export type MissionToolExecutionOutcome =
+  | { reason: string; result?: unknown; status: "cancelled" }
   | { result: unknown; status: "completed" }
   | { nextWakeAt: string; result: unknown; status: "waiting" }
   | { result: unknown; status: "waiting_approval" }
@@ -126,6 +128,14 @@ export class MissionExecutionEngine {
     );
     if (mission.status === "planning") {
       try {
+        await this.repository.recordObservation({
+          changeSummary: {},
+          incidentId: mission.incidentId,
+          missionId: mission.id,
+          observationType: "initial",
+          stateFingerprint: createFingerprint(snapshot),
+          stateSnapshot: snapshot,
+        });
         const relevantLessons = await this.contextProvider.getRelevantLessons(
           snapshot,
           signal,
@@ -172,7 +182,11 @@ export class MissionExecutionEngine {
     );
     let executions = 0;
     for (const plannedStep of steps) {
-      if (plannedStep.status !== "planned") continue;
+      if (
+        plannedStep.status !== "planned" &&
+        plannedStep.status !== "waiting_approval"
+      )
+        continue;
       if (executions >= this.maxToolExecutionsPerWake) {
         const nextWakeAt = new Date(
           this.now().getTime() + 15_000,
@@ -202,8 +216,8 @@ export class MissionExecutionEngine {
       }
       const runningStep = await this.repository.markStepRunning(plannedStep.id);
       const definition = this.registry.resolve(runningStep.toolName).definition;
-      let audit: CounterfactualAudit | null = null;
-      if (definition.securityPolicy.impact === "high") {
+      let audit: CounterfactualAudit | null = runningStep.decisionAudit;
+      if (definition.securityPolicy.impact === "high" && !audit) {
         const auditResult = await this.planner.auditAction(
           {
             incidentSnapshot: snapshot,
@@ -311,6 +325,33 @@ export class MissionExecutionEngine {
           incidentId: mission.incidentId,
           message: "Human approval requested",
           metadata: { stepOrder: runningStep.stepOrder },
+          missionId: mission.id,
+        });
+        return { executions, mission };
+      }
+
+      if (outcome.status === "cancelled") {
+        await this.repository.recordStepResult({
+          audit,
+          error: outcome.reason,
+          result: outcome.result,
+          status: "cancelled",
+          stepId: runningStep.id,
+        });
+        mission = await this.repository.transitionMission(
+          mission.id,
+          "active",
+          "cancelled",
+          {
+            completedAt: this.now().toISOString(),
+            failureReason: outcome.reason,
+          },
+        );
+        await this.repository.appendTimeline({
+          eventType: "mission_cancelled",
+          incidentId: mission.incidentId,
+          message: "Mission cancelled at the human approval boundary",
+          metadata: { reason: outcome.reason },
           missionId: mission.id,
         });
         return { executions, mission };

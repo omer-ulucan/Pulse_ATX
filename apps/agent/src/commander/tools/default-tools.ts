@@ -204,7 +204,10 @@ export function createDefaultToolRegistry(): AgentToolRegistry {
       return context.operations.reviseAlertDraft(input);
     },
     idempotencyStrategy: "alert_singleton",
-    inputSchema: z.object({ alertId: z.uuid(), ...alertInputFields }),
+    inputSchema: z.object({
+      alertId: z.uuid().optional(),
+      ...alertInputFields,
+    }),
     name: "revise_alert_draft",
     outputSchema: AlertDraftResultSchema,
     requiresApproval: (input) => input.audience === "citywide",
@@ -221,7 +224,7 @@ export function createDefaultToolRegistry(): AgentToolRegistry {
     },
     idempotencyStrategy: "alert_singleton",
     inputSchema: z.object({
-      alertId: z.uuid(),
+      alertId: z.uuid().optional(),
       audience: AudienceSchema,
       impact: z.string().min(5).max(500),
       incidentId: z.uuid(),
@@ -246,7 +249,10 @@ export function createDefaultToolRegistry(): AgentToolRegistry {
       return context.operations.publishSimulatedAlert(input);
     },
     idempotencyStrategy: "alert_singleton",
-    inputSchema: z.object({ alertId: z.uuid(), incidentId: z.uuid() }),
+    inputSchema: z.object({
+      alertId: z.uuid().optional(),
+      incidentId: z.uuid(),
+    }),
     name: "publish_simulated_alert",
     outputSchema: z.object({
       alertId: z.uuid(),

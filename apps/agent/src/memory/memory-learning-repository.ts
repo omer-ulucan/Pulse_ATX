@@ -65,7 +65,14 @@ export class MemoryLearningRepository implements LearningRepository {
           similarity: cosineSimilarity(query.embedding, memory.embedding),
         }))
         .filter(({ memory, similarity }) => {
-          const lessonType = memory.lesson.conditions.event_type;
+          const conditions = memory.lesson.conditions;
+          const lessonType =
+            typeof conditions === "object" &&
+            conditions !== null &&
+            "event_type" in conditions &&
+            typeof conditions.event_type === "string"
+              ? conditions.event_type
+              : null;
           return (
             similarity >= 0.45 &&
             (!query.incidentType || lessonType === query.incidentType)

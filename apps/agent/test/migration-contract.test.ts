@@ -184,4 +184,25 @@ describe("core schema migration", () => {
       "alter publication supabase_realtime add table",
     );
   });
+
+  it("defines atomic mission claims, execution idempotency, and approval", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../../supabase/migrations/202607190002_agent_mission_runtime.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("create_agent_mission");
+    expect(migration).toContain("claim_agent_missions");
+    expect(migration).toContain("for update skip locked");
+    expect(migration).toContain("persist_agent_mission_plan");
+    expect(migration).toContain("begin_agent_tool_execution");
+    expect(migration).toContain(
+      "on conflict (mission_id, tool_name, arguments_fingerprint)",
+    );
+    expect(migration).toContain("decide_agent_tool_approval");
+    expect(migration).toContain("approval_status in ('approved', 'rejected')");
+  });
 });
